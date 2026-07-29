@@ -25,6 +25,16 @@ REQUIREMENTS = [
 ]
 
 
+def frozen() -> bool:
+    """Vrai si le programme tourne depuis un exécutable PyInstaller.
+
+    Dans ce cas ``sys.executable`` **est l'exécutable lui-même**, pas un
+    interpréteur Python : on ne peut donc ni lancer ``-m pip``, ni relancer
+    ``-c "..."``. Toutes les dépendances sont d'ailleurs déjà embarquées.
+    """
+    return getattr(sys, "frozen", False) or hasattr(sys, "_MEIPASS")
+
+
 def _installed(module: str) -> bool:
     try:
         return importlib.util.find_spec(module) is not None
@@ -51,7 +61,7 @@ def install(specs: list[str], quiet: bool = False) -> bool:
     """Installe avec le pip de l'interpréteur courant. Renvoie True si OK."""
     if not specs:
         return True
-    if not pip_available():
+    if frozen() or not pip_available():
         return False
     cmd = [sys.executable, "-m", "pip", "install"]
     # hors environnement virtuel, on installe pour l'utilisateur seulement :
@@ -97,8 +107,12 @@ def ensure(auto: bool = True, quiet: bool = False,
     ont été installés mais restent invisibles (cas courant d'une première
     installation en ``--user``), le programme **se relance lui-même** une fois.
     """
-    todo = missing()
     report = {"installed": [], "still_missing": [], "ok": True, "has_3d": True}
+    if frozen():
+        # tout est déjà dans l'exécutable : rien à vérifier, rien à installer
+        report["has_3d"] = _installed("pyqtgraph") and _installed("OpenGL")
+        return report
+    todo = missing()
     if todo and auto:
         names = ", ".join(t[0] for t in todo)
         print(f"[Anticythere3D] Dépendances manquantes : {names}")
@@ -140,6 +154,16 @@ def qt_can_start(timeout: int = 60) -> bool:
     bibliothèques X/xcb du système. Leur absence ne lève pas une exception
     Python, elle **tue le processus** — d'où le test isolé.
     """
+    if frozen():
+        # Impossible de tester dans un sous-processus : `sys.executable` est
+        # l'exécutable, pas Python. On teste donc directement, en important
+        # Qt dans ce processus — s'il manquait des bibliothèques système,
+        # l'exécutable n'aurait de toute façon pas démarré jusqu'ici.
+        try:
+            from PyQt6 import QtWidgets  # noqa: F401
+            return True
+        except Exception:
+            return False
     if not _installed("PyQt6"):
         return False
     env = dict(os.environ)
