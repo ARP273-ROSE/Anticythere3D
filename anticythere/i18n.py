@@ -33,6 +33,36 @@ T: dict[str, dict[str, str]] = {
         "en": "Available in vector mode. The file contains curves only:\n"
               "zoom in or print at A0 with no pixels at all."},
     "menu.file.quit": {"fr": "Quitter", "en": "Quit"},
+    "menu.eclipse": {"fr": "&Éclipses", "en": "&Eclipses"},
+    "menu.eclipse.next": {"fr": "Prochaines éclipses…", "en": "Upcoming eclipses…"},
+    "menu.eclipse.tip": {
+        "fr": "Cherche les prochaines syzygies et teste, pour chacune, la\n"
+              "proximité d'un nœud — la démarche même que mécanise le Saros.",
+        "en": "Finds the coming syzygies and tests each one against the\n"
+              "nearness of a node — the very method the Saros mechanises."},
+    "eclipse.intro": {
+        "fr": "Double-clique sur une ligne pour y emmener la machine.",
+        "en": "Double-click a row to take the mechanism to that date."},
+    "eclipse.kind": {"fr": "Type", "en": "Type"},
+    "eclipse.node": {"fr": "Écart au nœud", "en": "Distance to node"},
+    "eclipse.quality": {"fr": "Nature", "en": "Nature"},
+    "eclipse.solar": {"fr": "de Soleil", "en": "solar"},
+    "eclipse.lunar": {"fr": "de Lune", "en": "lunar"},
+    "eclipse.central": {"fr": "centrale — certaine", "en": "central — certain"},
+    "eclipse.partial": {"fr": "partielle, selon le lieu",
+                        "en": "partial, depends on location"},
+    "eclipse.goto": {"fr": "Aller à cette date", "en": "Go to this date"},
+    "eclipse.note": {
+        "fr": "Les dates sont calculées par éphémérides modernes, à quelques "
+              "minutes près : elles servent de référence pour juger la machine, "
+              "qui, elle, ne connaît que la case du Saros. L'écart au nœud "
+              "décide de tout : en dessous de 15,4° une éclipse de Soleil est "
+              "centrale, au-delà de 18,5° il n'y en a pas.",
+        "en": "Dates come from modern ephemerides, accurate to a few minutes: "
+              "they are the yardstick against which the mechanism — which only "
+              "knows its Saros cell — is judged. The distance to the node "
+              "decides everything: below 15.4° a solar eclipse is central, "
+              "beyond 18.5° there is none."},
     "menu.view": {"fr": "&Vue", "en": "&View"},
     "menu.view.case": {"fr": "Afficher l'enveloppe", "en": "Show the case"},
     "menu.view.plates": {"fr": "Afficher les platines", "en": "Show the plates"},

@@ -133,13 +133,48 @@ def arbor_extent(arbor: str) -> tuple[float, float]:
     return min(zs) - 3.0, max(zs) + GEAR_THICKNESS + 3.0
 
 
-#: emprise réelle du mécanisme : b1 s'étend jusqu'à x = -112, la manivelle
-#: jusqu'à x = +160 ; le boîtier doit donc être centré sur x ≈ 24, pas sur 0.
-CASE_CX = 24.0
-CASE_CY = 0.0
-CASE_WIDTH = 310.0
-CASE_HEIGHT = 265.0
+def mechanism_extent(margin: float = 14.0) -> tuple[float, float, float, float]:
+    """Emprise réelle du mécanisme : (x_min, x_max, y_min, y_max).
+
+    Mesurée sur les rayons de tête de toutes les roues, plus la manivelle.
+    Le boîtier en découle — le calculer à la main, c'est se retrouver avec
+    une grande roue qui dépasse.
+    """
+    from .kinematics import TEETH
+
+    xs, ys = [], []
+    for gear in LEVELS:
+        x, y = ARBORS[ARBOR_OF[gear]]
+        r = MODULE * (TEETH[gear] / 2.0 + 1.0)
+        xs += [x - r, x + r]
+        ys += [y - r, y + r]
+    ax, ay = ARBORS["a"]                       # la manivelle sort du flanc
+    xs += [ax + 30.0]
+    ys += [ay - 20.0, ay + 20.0]
+    return (min(xs) - margin, max(xs) + margin,
+            min(ys) - margin, max(ys) + margin)
+
+
+_X0, _X1, _Y0, _Y1 = mechanism_extent()
+CASE_WIDTH = _X1 - _X0
+CASE_HEIGHT = _Y1 - _Y0
+CASE_CX = (_X0 + _X1) / 2.0
+CASE_CY = (_Y0 + _Y1) / 2.0
 CASE_DEPTH = (N_LEVELS + 1) * LEVEL_PITCH
 
 #: centre géométrique, pour recentrer la caméra
 CENTER = (CASE_CX, CASE_CY, CASE_DEPTH / 2.0)
+
+# --- cadran arrière : où sont réellement les centres des deux spirales -----
+#: côté de la texture du dos, en mm
+BACK_DIAL_SPAN = 250.0
+#: positions dans la texture, en fraction de son côté (cf. dialface)
+_METONIC_FY, _SAROS_FY = 0.30, 0.72
+#: rayons extérieurs des deux spirales, en fraction du côté
+_METONIC_FR, _SAROS_FR = 0.20, 0.185
+
+#: y de l'image va vers le bas, y de la scène vers le haut : d'où le signe.
+METONIC_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (0.5 - _METONIC_FY))
+SAROS_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (0.5 - _SAROS_FY))
+METONIC_RADIUS = BACK_DIAL_SPAN * _METONIC_FR
+SAROS_RADIUS = BACK_DIAL_SPAN * _SAROS_FR

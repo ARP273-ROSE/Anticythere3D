@@ -152,10 +152,13 @@ def illuminated_fraction(jd: float) -> float:
 
 
 # ------------------------------------------------------------------ éclipses
-#: limites d'éclipse approchées : écart maximal au nœud, en degrés de
-#: longitude, pour qu'une éclipse soit possible (Meeus ch. 54).
+#: limites d'éclipse, en degrés d'écart au nœud (Meeus ch. 54).
+#: au-delà de LIMIT, rien ; en deçà de CENTRAL, l'éclipse est certaine ;
+#: entre les deux, elle dépend de la parallaxe et du lieu d'observation.
 SOLAR_LIMIT = 18.5
+SOLAR_CENTRAL = 15.4
 LUNAR_LIMIT = 12.2
+LUNAR_CENTRAL = 9.5
 
 
 def eclipse_possible(jd: float) -> dict:
@@ -173,10 +176,62 @@ def eclipse_possible(jd: float) -> dict:
     near_new = min(e, 360.0 - e) < 12.0
     near_full = abs(e - 180.0) < 12.0
     if near_new and dist < SOLAR_LIMIT:
-        return dict(type="solar", certain=dist < 10.0, arg=dist)
+        return dict(type="solar", certain=dist < SOLAR_CENTRAL, arg=dist)
     if near_full and dist < LUNAR_LIMIT:
-        return dict(type="lunar", certain=dist < 6.0, arg=dist)
+        return dict(type="lunar", certain=dist < LUNAR_CENTRAL, arg=dist)
     return dict(type=None, certain=False, arg=dist)
+
+
+# ------------------------------------------------- recherche des éclipses
+def _syzygy_gap(jd: float, target: float) -> float:
+    """Écart à la syzygie visée (0 = nouvelle Lune, 180 = pleine), dans
+    l'intervalle ]-180, 180]."""
+    return ((elongation(jd) - target + 180.0) % 360.0) - 180.0
+
+
+def find_syzygies(jd_start: float, days: float = 1200.0) -> list:
+    """Toutes les nouvelles et pleines Lunes de la période, par bissection."""
+    out = []
+    for target, kind in ((0.0, "new"), (180.0, "full")):
+        t = jd_start
+        prev = _syzygy_gap(t, target)
+        while t < jd_start + days:
+            t2 = t + 0.5
+            cur = _syzygy_gap(t2, target)
+            if prev < 0.0 <= cur:                 # passage par la syzygie
+                a, b = t, t2
+                for _ in range(60):
+                    m = 0.5 * (a + b)
+                    if _syzygy_gap(m, target) < 0.0:
+                        a = m
+                    else:
+                        b = m
+                out.append((0.5 * (a + b), kind))
+            prev, t = cur, t2
+    return sorted(out)
+
+
+def next_eclipses(jd_start: float, count: int = 8,
+                  days: float = 1500.0) -> list:
+    """Prochaines éclipses : date exacte, type, écart au nœud, certitude.
+
+    On cherche d'abord les syzygies, puis on teste chacune : c'est la
+    démarche même que mécanise le Saros.
+    """
+    res = []
+    for jd, kind in find_syzygies(jd_start, days):
+        a = moon_arguments(jd)
+        f = a["F"] % 180.0
+        dist = min(f, 180.0 - f)
+        if kind == "new" and dist < SOLAR_LIMIT:
+            res.append(dict(jd=jd, type="solar", arg=dist,
+                            certain=dist < SOLAR_CENTRAL))
+        elif kind == "full" and dist < LUNAR_LIMIT:
+            res.append(dict(jd=jd, type="lunar", arg=dist,
+                            certain=dist < LUNAR_CENTRAL))
+        if len(res) >= count:
+            break
+    return res
 
 
 # --------------------------------------------------------------- calibration
