@@ -283,13 +283,40 @@ def test_updater():
           "check() renvoie toujours un etat, sans lever")
 
 
+def test_frozen():
+    """Mode executable : sys.executable N'EST PAS un interpreteur Python.
+
+    Sans ces garde-fous, l'exe se relance lui-meme avec des arguments qu'il ne
+    comprend pas, conclut a tort que Qt ne demarre pas, et se ferme en
+    silence — c'est exactement ce qui empechait l'exe Windows de s'ouvrir.
+    """
+    print("\n[13] Comportement en executable fige")
+    import sys as _sys
+    from anticythere import bootstrap
+    had = hasattr(_sys, "frozen")
+    _sys.frozen = True
+    try:
+        check(bootstrap.frozen(), "le mode fige est bien detecte")
+        rep = bootstrap.ensure()
+        check(rep["ok"] and not rep["installed"],
+              "ensure() n'installe rien et declare l'application utilisable")
+        check(bootstrap.install(["nimportequoi"]) is False,
+              "install() refuse d'appeler pip depuis un executable")
+        check(bootstrap.qt_can_start() is True,
+              "qt_can_start() teste en direct, sans sous-processus")
+    finally:
+        if not had:
+            del _sys.frozen
+
+
 def main() -> int:
     print("=" * 70)
     print("  TESTS — Machine d'Anticythere")
     print("=" * 70)
     for fn in (test_ratios, test_carrier_and_anomalistic_month, test_pin_and_slot,
                test_dials, test_planets, test_astro, test_calibration,
-               test_geometry, test_layout, test_i18n, test_stl, test_updater):
+               test_geometry, test_layout, test_i18n, test_stl, test_updater,
+               test_frozen):
         fn()
     print("\n" + "=" * 70)
     if FAILURES:
