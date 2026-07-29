@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo_256.png" width="150" alt="Anticythere3D">
+</p>
+
 # Anticythere3D — simulateur de la machine d'Anticythère
 
 *[English version below](#anticythere3d--antikythera-mechanism-simulator)*
@@ -17,7 +21,21 @@ Deux rendus au choix : **3D** temps réel (fond clair, antialiasing 8×) et
 
 ---
 
-## Installation — le programme s'installe tout seul
+## Installation
+
+### Le plus simple : l'exécutable
+
+Va sur la [page des versions](https://github.com/ARP273-ROSE/Anticythere3D/releases/latest),
+télécharge `Anticythere3D-windows.exe` et double-clique. Rien à installer.
+Ensuite, le programme se met à jour tout seul : **Aide → Rechercher une mise à jour**.
+
+### Sous Windows, depuis les sources
+
+Double-clique sur **`launch.bat`** : il crée l'environnement, installe les
+dépendances et démarre le simulateur. S'il y a une erreur, il l'affiche au lieu
+de se fermer.
+
+### En ligne de commande
 
 Il suffit d'avoir **Python 3.10 ou plus récent** :
 
