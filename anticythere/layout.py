@@ -165,7 +165,20 @@ CASE_DEPTH = (N_LEVELS + 1) * LEVEL_PITCH
 #: centre géométrique, pour recentrer la caméra
 CENTER = (CASE_CX, CASE_CY, CASE_DEPTH / 2.0)
 
-# --- cadran arrière : où sont réellement les centres des deux spirales -----
+# --- cadrans : géométrie calculée, pas ajustée à l'œil ---------------------
+# Tout ce bloc sort de `anticythere_cadrans.sage`, qui vérifie que chaque
+# anneau, chaque spirale et chaque aiguille tombe au bon endroit et que rien
+# ne déborde du boîtier.
+
+#: le cadran avant est centré sur l'arbre b, en (0, 0), alors que le boîtier
+#: est centré ailleurs : son rayon est donc limité par le bord le plus proche
+FRONT_DIAL_SPAN = 244.0
+#: rayons des anneaux, en fraction du rayon du cadran (cf. dialface)
+_ZOD_IN_F, _ZOD_OUT_F = 0.63, 0.825
+#: l'aiguille du Soleil doit pointer DANS l'anneau du zodiaque, pas au-delà
+SUN_HAND = FRONT_DIAL_SPAN / 2.0 * _ZOD_OUT_F - 3.0          # 97,7 mm
+MOON_HAND = FRONT_DIAL_SPAN / 2.0 * (_ZOD_IN_F + _ZOD_OUT_F) / 2.0   # 88,8 mm
+
 #: côté de la texture du dos, en mm
 BACK_DIAL_SPAN = 250.0
 #: positions dans la texture, en fraction de son côté (cf. dialface)
@@ -173,8 +186,13 @@ _METONIC_FY, _SAROS_FY = 0.30, 0.72
 #: rayons extérieurs des deux spirales, en fraction du côté
 _METONIC_FR, _SAROS_FR = 0.20, 0.185
 
-#: y de l'image va vers le bas, y de la scène vers le haut : d'où le signe.
-METONIC_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (0.5 - _METONIC_FY))
-SAROS_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (0.5 - _SAROS_FY))
+# Position dans la scène d'un point de la texture, à la fraction (fx, fy) :
+#     Y = cy + span * (fy - 1/2)
+# Chaîne vérifiée en calcul formel (anticythere_texture.sage) : transposition
+# du tableau, miroir de la face arrière, puis la matrice de l'item. Le signe
+# ci-dessous avait été posé à l'envers, ce qui plaçait chaque aiguille au
+# centre de l'AUTRE spirale, à 5 mm près.
+METONIC_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (_METONIC_FY - 0.5))
+SAROS_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (_SAROS_FY - 0.5))
 METONIC_RADIUS = BACK_DIAL_SPAN * _METONIC_FR
 SAROS_RADIUS = BACK_DIAL_SPAN * _SAROS_FR

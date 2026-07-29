@@ -125,9 +125,9 @@ if HAS_GL:
             # aiguilles : maillage créé À PLAT (z0 = 0), c'est set_pointers qui
             # les place — sinon le décalage en z serait appliqué deux fois.
             self._pointers["sun"] = self._add(
-                geo.pointer_mesh(104.0, 0.0), (0.85, 0.65, 0.15, 1.0))
+                geo.pointer_mesh(lay.SUN_HAND, 0.0), (0.85, 0.65, 0.15, 1.0))
             self._pointers["moon"] = self._add(
-                geo.pointer_mesh(86.0, 0.0), (0.80, 0.82, 0.86, 1.0))
+                geo.pointer_mesh(lay.MOON_HAND, 0.0), (0.80, 0.82, 0.86, 1.0))
             # aiguilles du dos : leur longueur suit le rayon de leur spirale
             self._pointers["metonic"] = self._add(
                 geo.pointer_mesh(lay.METONIC_RADIUS * 1.02, 0.0),
@@ -227,9 +227,10 @@ if HAS_GL:
             # cadrans gravés : de vraies textures, avec les inscriptions
             # grecques. Un disque de bronze et quelques traits en volume ne
             # rendraient jamais ΚΡΙΟΣ ni ΜΕΤΩΝ lisibles.
-            self._add_dial_texture("front", 250.0, z_front + 0.6, 0.0, 0.0)
-            self._add_dial_texture("back", 250.0, z_back - 0.6, cx, cy,
-                                   flip=True)
+            self._add_dial_texture("front", lay.FRONT_DIAL_SPAN,
+                                   z_front + 0.6, 0.0, 0.0)
+            self._add_dial_texture("back", lay.BACK_DIAL_SPAN,
+                                   z_back - 0.6, cx, cy, flip=True)
             # manivelle sur le flanc, dans l'axe de la roue a1
             ax, ay = lay.ARBORS["a"]
             self._case.append(self._add(
