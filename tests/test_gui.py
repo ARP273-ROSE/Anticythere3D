@@ -9,6 +9,7 @@ réellement posés, bascule de langue complète, cadrans régénérés, exports.
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 
@@ -115,6 +116,41 @@ def main() -> int:
     with open("/tmp/_test_export.svg", "rb") as fh:
         svg = fh.read()
     check(b"<image" not in svg, "le SVG ne contient aucune image bitmap")
+
+    # ------------------------------------------------ cadran arrière
+    # Deux défauts signalés en usage : des cadrans qui se chevauchaient, et
+    # des spirales sans aucune inscription. Les deux sont verrouillés ici.
+    print("\n[G6] Cadran arriere : encombrement et inscriptions")
+    from anticythere import dialface as df, layout as lay
+
+    check(lay.BACK_DIAL_SPAN >= max(lay.CASE_WIDTH, lay.CASE_HEIGHT),
+          "la texture du dos couvre toute la plaque",
+          f"{lay.BACK_DIAL_SPAN} < {max(lay.CASE_WIDTH, lay.CASE_HEIGHT)}")
+
+    disques = [("metonique", lay.METONIC_CENTER, lay.METONIC_RADIUS),
+               ("saros", lay.SAROS_CENTER, lay.SAROS_RADIUS),
+               ("callippique", lay.ARBORS["o"], lay.CALLIPPIC_RADIUS),
+               ("exeligmos", lay.ARBORS["i"], lay.EXELIGMOS_RADIUS),
+               ("jeux", lay.GAMES_CENTER, 13.0)]
+    chevauchements = []
+    for i in range(len(disques)):
+        for j in range(i + 1, len(disques)):
+            (n1, c1, r1), (n2, c2, r2) = disques[i], disques[j]
+            d = math.hypot(c1[0] - c2[0], c1[1] - c2[1])
+            if d < r1 + r2:
+                chevauchements.append(f"{n1}/{n2} ({r1 + r2 - d:.2f} mm)")
+    check(not chevauchements, "aucun cadran arriere n'en chevauche un autre",
+          ", ".join(chevauchements))
+
+    starts = df.metonic_year_starts()
+    check(len(starts) == 19 and starts[-1] == 222,
+          "19 annees metoniques, la derniere commence au mois 222")
+    check(len(df.SAROS_SOLAR) + len(df.SAROS_LUNAR) > 0
+          and max(df.SAROS_SOLAR | df.SAROS_LUNAR) < 223,
+          "les glyphes d'eclipse tombent dans les 223 cases du Saros")
+    check(all(len(court) <= 4 for _, court in df.CORINTHIAN_MONTHS)
+          and len(df.CORINTHIAN_MONTHS) == 12,
+          "12 mois corinthiens, abreges a 4 lettres pour tenir dans la case")
 
     print("\n" + "=" * 70)
     if FAILURES:
