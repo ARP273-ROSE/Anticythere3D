@@ -53,6 +53,7 @@ class VectorView(QtWidgets.QWidget):
         self._angles: dict[str, float] = {}
         self._carrier = 0.0
         self._pointers = (0.0, 0.0, 0.0, 0.0)
+        self._planets: dict[str, float] = {}
         self._zoom = 1.0
         self._pan = QtCore.QPointF(0.0, 0.0)
         self._rot = 0.0                 # rotation du plan, en degrés
@@ -90,6 +91,12 @@ class VectorView(QtWidgets.QWidget):
 
     def set_pointers(self, sun, moon, metonic, saros):
         self._pointers = (sun, moon, metonic, saros)
+        self.update()
+
+    def set_planets(self, planets: dict, moon_turns: float, sun_turns: float):
+        self._planets = dict(planets)
+        self._planets["moon"] = moon_turns
+        self._planets["sun"] = sun_turns
         self.update()
 
     def look_at(self, mode: str):
@@ -293,15 +300,19 @@ class VectorView(QtWidgets.QWidget):
     def _draw_pointers(self, painter: QtGui.QPainter):
         sun, moon, met, sar = self._pointers
         painter.save()
+        # (turns, longueur, couleur, largeur, centre)
         specs = []
         if self.face in ("front", "all"):
-            specs += [(sun, 104.0, lay.COLORS["input"], 3.2),
-                      (moon, 88.0, lay.COLORS["moon"], 2.4)]
+            specs += [(sun, lay.SUN_HAND, lay.COLORS["input"], 3.2, (0.0, 0.0)),
+                      (moon, lay.MOON_HAND, lay.COLORS["moon"], 2.4, (0.0, 0.0))]
         if self.face in ("back", "all"):
-            specs += [(met, 58.0, lay.COLORS["metonic"], 2.4),
-                      (sar, 52.0, lay.COLORS["saros"], 2.4)]
-        for turns, length, color, wid in specs:
+            specs += [(met, lay.METONIC_RADIUS, lay.COLORS["metonic"], 2.4,
+                       lay.METONIC_CENTER),
+                      (sar, lay.SAROS_RADIUS, lay.COLORS["saros"], 2.4,
+                       lay.SAROS_CENTER)]
+        for turns, length, color, wid, (px, py) in specs:
             painter.save()
+            painter.translate(px, py)
             painter.rotate(-360.0 * turns)
             painter.setPen(QtGui.QPen(_qcolor(color), 0.6))
             painter.setBrush(_qcolor(color))
@@ -311,10 +322,26 @@ class VectorView(QtWidgets.QWidget):
                                     QtCore.QPointF(length, wid / 4),
                                     QtCore.QPointF(-6.0, wid / 2)])
             painter.drawPolygon(poly)
+            # moyeu : l'aiguille est fixée sur son axe
+            painter.setBrush(_qcolor(lay.COLORS["arbor"]))
+            painter.drawEllipse(QtCore.QPointF(0, 0), 4.2, 4.2)
             painter.restore()
-        painter.setBrush(_qcolor(lay.COLORS["dial"]))
-        painter.setPen(QtGui.QPen(_qcolor(lay.INK), 0.5))
-        painter.drawEllipse(QtCore.QPointF(0, 0), 5.0, 5.0)
+
+        # le Cosmos : anneaux planétaires et leurs petites sphères
+        if self.face in ("front", "all") and self._planets:
+            for pname, radius, color in lay.COSMOS_RINGS:
+                turns = self._planets.get(pname)
+                if turns is None:
+                    continue
+                painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+                painter.setPen(QtGui.QPen(_qcolor(color, 0.8), 1.6))
+                painter.drawEllipse(QtCore.QPointF(0, 0), radius, radius)
+                a = 2.0 * math.pi * turns
+                painter.setBrush(_qcolor(color))
+                painter.setPen(QtGui.QPen(_qcolor(lay.INK), 0.4))
+                painter.drawEllipse(
+                    QtCore.QPointF(radius * math.cos(a), radius * math.sin(a)),
+                    3.2, 3.2)
         painter.restore()
 
     def _draw_labels(self, painter, width, height, scale, for_export):

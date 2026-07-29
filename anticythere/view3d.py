@@ -111,8 +111,17 @@ if HAS_GL:
                                          profile=self.profile)
                 self._gears[name] = self._add(mesh, color)
 
+            # plans de la façade et du dos, nécessaires avant les arbres
+            zf_pre = lay.level_z(1) + 8.0
+            zb_pre = lay.level_z(16) - 8.0
             for arbor in lay.ARBORS:
                 z0, z1 = lay.arbor_extent(arbor)
+                # les arbres de sortie TRAVERSENT jusqu'à leur cadran : c'est
+                # eux qui portent les aiguilles — fin de la lévitation
+                if arbor in ("n", "g", "o", "i"):
+                    z0 = zb_pre - 12.0
+                if arbor == "b":
+                    z1 = zf_pre + 9.0
                 mesh = geo.cylinder_mesh(lay.ARBOR_RADIUS, z0, z1 - z0, segments=14)
                 self._arbors[arbor] = self._add(mesh, lay.COLORS["arbor"])
 
@@ -124,17 +133,35 @@ if HAS_GL:
 
             # aiguilles : maillage créé À PLAT (z0 = 0), c'est set_pointers qui
             # les place — sinon le décalage en z serait appliqué deux fois.
-            self._pointers["sun"] = self._add(
-                geo.pointer_mesh(lay.SUN_HAND, 0.0), (0.85, 0.65, 0.15, 1.0))
-            self._pointers["moon"] = self._add(
-                geo.pointer_mesh(lay.MOON_HAND, 0.0), (0.80, 0.82, 0.86, 1.0))
-            # aiguilles du dos : leur longueur suit le rayon de leur spirale
-            self._pointers["metonic"] = self._add(
-                geo.pointer_mesh(lay.METONIC_RADIUS * 1.02, 0.0),
-                lay.COLORS["metonic"])
-            self._pointers["saros"] = self._add(
-                geo.pointer_mesh(lay.SAROS_RADIUS * 1.02, 0.0),
-                lay.COLORS["saros"])
+            # Chaque aiguille reçoit un MOYEU : elle est vissée sur son arbre,
+            # pas posée en l'air.
+            def hand(length, color):
+                mesh = geo.merge([
+                    geo.pointer_mesh(length, 0.0),
+                    geo.disc_mesh(4.6, -0.6, 2.4, inner=1.2, segments=24)])
+                return self._add(mesh, color)
+
+            self._pointers["sun"] = hand(lay.SUN_HAND, (0.85, 0.65, 0.15, 1.0))
+            self._pointers["moon"] = hand(lay.MOON_HAND, (0.80, 0.82, 0.86, 1.0))
+            self._pointers["metonic"] = hand(lay.METONIC_RADIUS * 1.02,
+                                             lay.COLORS["metonic"])
+            self._pointers["saros"] = hand(lay.SAROS_RADIUS * 1.02,
+                                           lay.COLORS["saros"])
+
+            # ---- le Cosmos de la face avant : anneaux planétaires tournants
+            # (modèle Freeth 2021), chacun marqué de sa petite sphère — le
+            # sphairion des inscriptions
+            self._planet_rings = {}
+            self._planet_balls = {}
+            z_cosmos = zf_pre + 9.5
+            for idx, (pname, radius, color) in enumerate(lay.COSMOS_RINGS):
+                zr = z_cosmos + 0.12 * idx
+                ring = self._add(geo.disc_mesh(radius + 1.1, zr, 0.8,
+                                               inner=radius - 1.1),
+                                 (color[0], color[1], color[2], 0.95))
+                self._planet_rings[pname] = (ring, radius, zr)
+                ball = self._add(geo.sphere_mesh(3.1, 0.0), color)
+                self._planet_balls[pname] = (ball, radius, zr)
 
             # anneau du zodiaque, visible même machine ouverte
             self._dials = [self._add(
@@ -277,13 +304,27 @@ if HAS_GL:
                 m.translate(x, y, 0.0)
                 item.setTransform(m)
 
+        def set_planets(self, planets: dict, moon_turns: float,
+                        sun_turns: float):
+            """Place la petite sphère de chaque anneau du Cosmos."""
+            values = dict(planets)
+            values["moon"] = moon_turns
+            values["sun"] = sun_turns
+            for pname, (ball, radius, zr) in self._planet_balls.items():
+                turns = values.get(pname, 0.0)
+                m = QtGui.QMatrix4x4()
+                m.translate(0.0, 0.0, zr + 2.2)
+                m.rotate(-360.0 * turns, 0.0, 0.0, 1.0)
+                m.translate(radius, 0.0, 0.0)
+                ball.setTransform(m)
+
         def set_pointers(self, sun_turns, moon_turns, metonic_turns, saros_turns):
             zb = self.z_back
             # chaque aiguille tourne autour du centre de SON cadran : celles du
             # dos ne sont pas sur l'axe central, mais au cœur de leur spirale.
             specs = (
-                ("sun", sun_turns, 0.0, 0.0, self.z_front + 2.5, 1.0),
-                ("moon", moon_turns, 0.0, 0.0, self.z_front + 5.0, 1.0),
+                ("sun", sun_turns, 0.0, 0.0, self.z_front + 11.0, 1.0),
+                ("moon", moon_turns, 0.0, 0.0, self.z_front + 13.0, 1.0),
                 ("metonic", metonic_turns, lay.METONIC_CENTER[0],
                  lay.METONIC_CENTER[1], zb - 2.0, -1.0),
                 ("saros", saros_turns, lay.SAROS_CENTER[0],
