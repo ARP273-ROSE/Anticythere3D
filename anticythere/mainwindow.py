@@ -705,10 +705,13 @@ class MainWindow(QtWidgets.QMainWindow):
                        "sortie / output", "rapport exact / exact ratio",
                        "tours par an / turns per year", rows))
         elif which == "about":
-            html = ("<h3>%s</h3><p>%s</p>"
+            from . import __version__
+            html = ("<h3>%s</h3><p>%s</p><p><b>Version %s</b></p>"
                     "<p>Freeth <i>et al.</i>, Nature 444 (2006), Nature 454 (2008),"
                     " Scientific Reports 11:5821 (2021).</p>"
-                    % (tr("app.title", L), tr("app.subtitle", L)))
+                    "<p><a href='https://github.com/ARP273-ROSE/Anticythere3D'>"
+                    "github.com/ARP273-ROSE/Anticythere3D</a></p>"
+                    % (tr("app.title", L), tr("app.subtitle", L), __version__))
         else:
             html = self._manual_html()
         dlg = QtWidgets.QDialog(self)

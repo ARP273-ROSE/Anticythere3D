@@ -302,8 +302,23 @@ def test_frozen():
               "ensure() n'installe rien et declare l'application utilisable")
         check(bootstrap.install(["nimportequoi"]) is False,
               "install() refuse d'appeler pip depuis un executable")
-        check(bootstrap.qt_can_start() is True,
-              "qt_can_start() teste en direct, sans sous-processus")
+
+        # l'invariant qui compte : AUCUN sous-processus ne doit etre lance,
+        # puisqu'il relancerait l'executable au lieu d'un interpreteur.
+        # (le resultat lui-meme depend des bibliotheques presentes : sur une
+        # machine sans libGL, False est la bonne reponse)
+        import subprocess
+        calls = []
+        real_run, real_call = subprocess.run, subprocess.check_call
+        subprocess.run = lambda *a, **k: calls.append(a) or real_run(*a, **k)
+        subprocess.check_call = lambda *a, **k: calls.append(a)
+        try:
+            res = bootstrap.qt_can_start()
+        finally:
+            subprocess.run, subprocess.check_call = real_run, real_call
+        check(isinstance(res, bool) and not calls,
+              f"qt_can_start() teste en direct, sans sous-processus (a={res})",
+              str(calls))
     finally:
         if not had:
             del _sys.frozen
