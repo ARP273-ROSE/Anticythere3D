@@ -1,0 +1,111 @@
+name: build
+
+# Construit les exécutables et publie une Release.
+# Déclenché par un tag « v* » (ex. v1.0.1) ou à la main depuis l'onglet Actions.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  pull_request:
+    branches: [master, main]
+
+permissions:
+  contents: write
+
+jobs:
+  tests:
+    name: Tests (sans écran)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Suite de tests
+        run: python tests/test_mechanism.py
+      - name: Export STL (contrôle de non-régression)
+        run: |
+          python -m anticythere.stl_export --out /tmp/stl
+          test -f /tmp/stl/nomenclature.csv
+
+  build:
+    name: Exécutable ${{ matrix.os }}
+    needs: tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: Anticythere3D-windows.exe
+            pyinstaller_name: Anticythere3D
+          - os: ubuntu-latest
+            artifact: Anticythere3D-linux
+            pyinstaller_name: Anticythere3D
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+
+      - name: Dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Construire l'exécutable
+        run: >
+          pyinstaller --onefile --windowed --clean --noconfirm
+          --name ${{ matrix.pyinstaller_name }}
+          --collect-submodules pyqtgraph
+          --collect-submodules OpenGL
+          --exclude-module tkinter
+          --exclude-module matplotlib
+          run.py
+
+      - name: Renommer pour la plateforme
+        shell: bash
+        run: |
+          cd dist
+          if [ -f "${{ matrix.pyinstaller_name }}.exe" ]; then
+            mv "${{ matrix.pyinstaller_name }}.exe" "${{ matrix.artifact }}"
+          else
+            mv "${{ matrix.pyinstaller_name }}" "${{ matrix.artifact }}"
+            chmod +x "${{ matrix.artifact }}"
+          fi
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          retention-days: 30
+
+  release:
+    name: Publier la Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {path: artifacts}
+      - name: Rassembler les binaires
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -la release
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          body: |
+            Simulateur de la machine d'Anticythère.
+
+            **Windows** : télécharger `Anticythere3D-windows.exe` et double-cliquer.
+            **Linux** : `Anticythere3D-linux`, puis `chmod +x` et lancer.
+
+            La mise à jour se fait ensuite toute seule depuis le programme
+            (menu *Aide → Rechercher une mise à jour*).
