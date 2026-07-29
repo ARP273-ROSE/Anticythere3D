@@ -75,6 +75,10 @@ jobs:
 
       - name: Construire l'exécutable
         shell: bash
+        env:
+          # PyInstaller importe pyqtgraph.examples en analysant les
+          # sous-modules ; sans écran sur le runner, Qt tuerait le processus.
+          QT_QPA_PLATFORM: offscreen
         run: |
           ICON=""
           if [ -f docs/logo.ico ]; then ICON="--icon=docs/logo.ico"; fi
