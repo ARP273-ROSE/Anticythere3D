@@ -580,6 +580,8 @@ class MainWindow(QtWidgets.QMainWindow):
         o = self.mech.outputs()
         self.view.set_angles(self.mech.gear_angles(), o.carrier_e3)
         self.view.set_pointers(o.mean_sun, o.moon_true, o.metonic, o.saros)
+        if hasattr(self.view, "set_planets"):
+            self.view.set_planets(o.planets, o.moon_true, o.mean_sun)
         self._fill_table(o)
         self.status.showMessage(tr("status.turns", self.lang, turns=o.turns,
                                    days=o.days, years=o.days / 365.24219))
