@@ -262,6 +262,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_quit = self.m_file.addAction("", self.close)
         self.act_quit.setShortcut("Ctrl+Q")
 
+        self.m_eclipse = mb.addMenu("")
+        self.act_eclipses = self.m_eclipse.addAction("", self._show_eclipses)
+        self.act_eclipses.setShortcut("E")
+
         self.m_view = mb.addMenu("")
         self.act_front = self.m_view.addAction("", lambda: self.view.look_at("front"))
         self.act_back = self.m_view.addAction("", lambda: self.view.look_at("back"))
@@ -379,6 +383,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_stl.setText(tr("menu.file.stl", L))
         self.act_stl.setToolTip(tr("menu.file.stl.tip", L))
         self.act_quit.setText(tr("menu.file.quit", L))
+        self.m_eclipse.setTitle(tr("menu.eclipse", L))
+        self.act_eclipses.setText(tr("menu.eclipse.next", L))
+        self.act_eclipses.setToolTip(tr("menu.eclipse.tip", L))
         self.m_view.setTitle(tr("menu.view", L))
         self.act_front.setText(tr("menu.view.front", L))
         self.act_back.setText(tr("menu.view.back", L))
@@ -592,6 +599,75 @@ class MainWindow(QtWidgets.QMainWindow):
         body = tr(f"expl.{key}", self.lang).replace("\n", "<br>")
         self.txt_expl.setHtml(
             f"<h3 style='color:#8ab4d8'>{title}</h3><p>{body}</p>")
+
+    # -------------------------------------------------------- éclipses
+    def _show_eclipses(self):
+        """Liste les prochaines éclipses ; un double-clic y emmène la machine."""
+        L = self.lang
+        jd0 = self.epoch_jd + self.mech.days
+        QtWidgets.QApplication.setOverrideCursor(
+            QtCore.Qt.CursorShape.WaitCursor)
+        try:
+            events = astro.next_eclipses(jd0, count=12)
+        finally:
+            QtWidgets.QApplication.restoreOverrideCursor()
+
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle(tr("menu.eclipse.next", L))
+        dlg.resize(660, 440)
+        v = QtWidgets.QVBoxLayout(dlg)
+        v.addWidget(QtWidgets.QLabel(tr("eclipse.intro", L)))
+        table = QtWidgets.QTableWidget(len(events), 4)
+        table.setHorizontalHeaderLabels([
+            tr("dial.date", L), tr("eclipse.kind", L),
+            tr("eclipse.node", L), tr("eclipse.quality", L)])
+        table.setEditTriggers(
+            QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(
+            QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        for r, e in enumerate(events):
+            d = astro.from_julian_day(e["jd"])
+            kind = tr("eclipse.solar" if e["type"] == "solar"
+                      else "eclipse.lunar", L)
+            qual = tr("eclipse.central" if e["certain"]
+                      else "eclipse.partial", L)
+            for c, txt in enumerate((d.strftime("%d/%m/%Y  %Hh%M UTC"), kind,
+                                     f"{e['arg']:.2f}°", qual)):
+                item = QtWidgets.QTableWidgetItem(txt)
+                item.setData(QtCore.Qt.ItemDataRole.UserRole, e["jd"])
+                if e["type"] == "solar":
+                    item.setForeground(QtGui.QColor(150, 90, 20))
+                table.setItem(r, c, item)
+        table.resizeColumnsToContents()
+        table.doubleClicked.connect(
+            lambda idx: self._goto_jd(
+                table.item(idx.row(), 0).data(QtCore.Qt.ItemDataRole.UserRole)))
+        v.addWidget(table)
+
+        note = QtWidgets.QLabel(tr("eclipse.note", L))
+        note.setWordWrap(True)
+        note.setStyleSheet("color:#555; font-size:11px;")
+        v.addWidget(note)
+
+        bb = QtWidgets.QDialogButtonBox()
+        go = bb.addButton(tr("eclipse.goto", L),
+                          QtWidgets.QDialogButtonBox.ButtonRole.AcceptRole)
+        bb.addButton(QtWidgets.QDialogButtonBox.StandardButton.Close)
+        go.clicked.connect(lambda: (
+            self._goto_jd(table.item(max(table.currentRow(), 0), 0)
+                          .data(QtCore.Qt.ItemDataRole.UserRole)), dlg.close()))
+        bb.rejected.connect(dlg.close)
+        v.addWidget(bb)
+        dlg.exec()
+
+    def _goto_jd(self, jd: float):
+        """Emmène la machine à une date donnée en jour julien."""
+        if jd is None:
+            return
+        self.mech.days = jd - self.epoch_jd
+        d = astro.from_julian_day(jd)
+        self.date_edit.setDate(QtCore.QDate(d.year, d.month, d.day))
+        self.refresh()
 
     # ------------------------------------------------------ mise à jour
     def _check_update(self, manual: bool = False):

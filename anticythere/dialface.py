@@ -262,8 +262,17 @@ def render_front_dial(size: int = 2048, calendar_days: int = 365,
                                                        calendar_days, lang), size)
 
 
-def render_back_dial(size: int = 2048, lang: str = "fr") -> QtGui.QImage:
-    return _render(lambda p, x, y, r: paint_back_dial(p, x, y, r, lang), size)
+def render_back_dial(size: int = 2048, lang: str = "fr",
+                     mirror: bool = False) -> QtGui.QImage:
+    """Face arrière. `mirror` dessine l'image en miroir horizontal : c'est ce
+    qu'il faut pour la texture 3D, puisqu'on regarde cette face par derrière.
+    Les deux spirales étant centrées, leurs centres ne bougent pas."""
+    def draw(p, x, y, r):
+        if mirror:
+            p.translate(2.0 * x, 0.0)
+            p.scale(-1.0, 1.0)
+        paint_back_dial(p, x, y, r, lang)
+    return _render(draw, size)
 
 
 def image_to_array(img: QtGui.QImage):

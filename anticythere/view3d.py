@@ -128,10 +128,13 @@ if HAS_GL:
                 geo.pointer_mesh(104.0, 0.0), (0.85, 0.65, 0.15, 1.0))
             self._pointers["moon"] = self._add(
                 geo.pointer_mesh(86.0, 0.0), (0.80, 0.82, 0.86, 1.0))
+            # aiguilles du dos : leur longueur suit le rayon de leur spirale
             self._pointers["metonic"] = self._add(
-                geo.pointer_mesh(58.0, 0.0), lay.COLORS["metonic"])
+                geo.pointer_mesh(lay.METONIC_RADIUS * 1.02, 0.0),
+                lay.COLORS["metonic"])
             self._pointers["saros"] = self._add(
-                geo.pointer_mesh(52.0, 0.0), lay.COLORS["saros"])
+                geo.pointer_mesh(lay.SAROS_RADIUS * 1.02, 0.0),
+                lay.COLORS["saros"])
 
             # anneau du zodiaque, visible même machine ouverte
             self._dials = [self._add(
@@ -169,15 +172,23 @@ if HAS_GL:
             if data is None:
                 img = (dialface.render_front_dial(1600, lang=self.dial_lang)
                        if which == "front"
-                       else dialface.render_back_dial(1600, lang=self.dial_lang))
+                       else dialface.render_back_dial(1600, lang=self.dial_lang,
+                                                      mirror=False))
                 data = dialface.image_to_array(img)
                 self._dial_cache[key] = data
+            # GLImageItem interprète data[i, j] comme le point (i, j) : la
+            # première dimension part donc sur X, pas sur Y. Sans cette
+            # transposition l'image est couchée — et compenser par un roulis
+            # de caméra désynchronise les aiguilles, qui, elles, sont placées
+            # dans le repère de la scène.
+            import numpy as _np
+            data = _np.ascontiguousarray(data.transpose(1, 0, 2))
             if flip:
-                # La face arrière se regarde depuis l'autre côté : on voit donc
-                # le dos de la texture. Une rotation ou un facteur d'échelle
-                # négatif ne changent rien (un plan retourné reste un plan
-                # retourné) — il faut miroiter l'IMAGE elle-même.
-                data = data[:, ::-1].copy()
+                # face regardée par derrière : miroir sur la dimension qui
+                # porte l'axe X de la scène (la première, après transposition)
+                data = _np.ascontiguousarray(data[::-1])
+            # (le miroir de la face arrière est appliqué au dessin lui-même,
+            # cf. dialface.render_back_dial(mirror=True))
             item = gl.GLImageItem(data, smooth=True)
             n = data.shape[0]
             m = QtGui.QMatrix4x4()
@@ -282,15 +293,25 @@ if HAS_GL:
 
         def set_pointers(self, sun_turns, moon_turns, metonic_turns, saros_turns):
             zb = self.z_back
-            for key, turns, z in (("sun", sun_turns, self.z_front + 2.5),
-                                  ("moon", moon_turns, self.z_front + 5.0),
-                                  ("metonic", metonic_turns, zb - 4.0),
-                                  ("saros", saros_turns, zb - 7.0)):
+            # chaque aiguille tourne autour du centre de SON cadran : celles du
+            # dos ne sont pas sur l'axe central, mais au cœur de leur spirale.
+            specs = (
+                ("sun", sun_turns, 0.0, 0.0, self.z_front + 2.5, 1.0),
+                ("moon", moon_turns, 0.0, 0.0, self.z_front + 5.0, 1.0),
+                ("metonic", metonic_turns, lay.METONIC_CENTER[0],
+                 lay.METONIC_CENTER[1], zb - 2.0, -1.0),
+                ("saros", saros_turns, lay.SAROS_CENTER[0],
+                 lay.SAROS_CENTER[1], zb - 4.0, -1.0),
+            )
+            for key, turns, px, py, z, mirror in specs:
                 item = self._pointers.get(key)
                 if item is None:
                     continue
                 m = QtGui.QMatrix4x4()
-                m.translate(0.0, 0.0, z)
+                m.translate(px, py, z)
+                # le dos est vu par-derrière : on y miroite l'aiguille comme
+                # le cadran, sinon elle tournerait à l'envers de la gravure
+                m.scale(mirror, 1.0, 1.0)
                 m.rotate(-360.0 * turns, 0.0, 0.0, 1.0)
                 item.setTransform(m)
 
@@ -319,12 +340,7 @@ if HAS_GL:
             if mode == "front":
                 self.setCameraPosition(distance=330, elevation=88, azimuth=-90)
             elif mode == "back":
-                # azimut opposé à la face avant, puis un quart de tour de
-                # roulis : sans lui, les inscriptions du dos sont couchées
                 self.setCameraPosition(distance=330, elevation=-88, azimuth=90)
-                self.opts["center"] = QtGui.QVector3D(*lay.CENTER)
-                self.roll(90.0)
-                return
             else:
                 self.setCameraPosition(distance=360, elevation=24, azimuth=-62)
             self.opts["center"] = QtGui.QVector3D(*lay.CENTER)
