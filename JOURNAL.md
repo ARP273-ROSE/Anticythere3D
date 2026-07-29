@@ -142,3 +142,47 @@ et de l'exeligmos. Palette éclaircie.
 Piège résolu : pour la face arrière, ni rotation ni échelle négative ne
 corrigent le miroir — un plan retourné reste retourné. Il faut miroiter
 l'image elle-même.
+
+## 2026-07-29 (audit complet)
+
+Demande de Kevin : audit complet (maths sous SageMath, perf, sécu,
+anti-freeze, multiplateforme, bilinguisme), miroir du dos, et vérification
+du système de mise à jour.
+
+### Miroir du dos — RÉSOLU
+Cause : GLImageItem transpose l'image en interne avant l'envoi à OpenGL
+(vu dans son code source). Remplacé par `texquad.TexturedQuadItem`, un quad
+à coordonnées UV explicites. Piège de pyqtgraph ≥ 0.13 : le pipeline fixe ne
+reçoit plus les matrices, il faut pousser soi-même la MVP (sinon le quad
+remplit l'écran). Formule de placement revalidée sous Sage pour le nouveau
+pipeline : Y = cy + span·(1/2 − fy).
+
+### Audit mathématique (docs/anticythere_audit.sage) — 9 sections
+Rapports, chaînes d'animation, tenon-fente (formule du code = géométrie
+exacte à 2·10⁻¹⁷ près), calage, limites d'éclipses, zodiaque/phases, jour
+julien (cas de référence Meeus), cadrans, offset d'onglet STL.
+**1 vrai bug trouvé** : à exactement 1 Saros, (1/3 % 1)·3 = 0,999… en
+flottant → le cadran de l'exeligmos affichait « +0 h » au lieu de « +8 h »,
+pile à la frontière la plus utilisée. Corrigé (epsilon d'1,7 s), testé.
+
+### Performance / anti-freeze
+refresh() : 0,5 ms par tick (budget 33 ms) — rien à faire.
+Export STL (704 ms) déplacé dans un fil séparé. next_eclipses (46 ms)
+conservé sous curseur d'attente.
+
+### Sécurité
+TLS vérifié (create_default_context), aucun eval/exec/shell=True.
+Durcissement : le téléchargement de mise à jour refuse toute URL hors des
+releases du dépôt et du CDN GitHub (`is_trusted_url`).
+
+### Multiplateforme / bilinguisme
+Chemins : trois `rsplit("/")` cassants sous Windows remplacés par os.path.
+**Bug trouvé** : les cadrans gravés ne suivaient pas la bascule de langue
+(dial_lang jamais mis à jour). Corrigé + régénération des textures.
+6 widgets sans tooltip corrigés. Nouveau `tests/test_gui.py` (16 contrôles) :
+tooltips exhaustifs dans les deux langues, bascule complète, mise en page,
+navigation éclipse, exports SVG/PDF sans bitmap.
+
+### Mise à jour vérifiée de bout en bout
+Détection (0.9.0 → 1.0.0), refus d'URL étrangère, téléchargement réel du
+binaire (91 Mo, progression), remplacement avec sauvegarde .old, relance.

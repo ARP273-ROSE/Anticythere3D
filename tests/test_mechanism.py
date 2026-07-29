@@ -13,7 +13,8 @@ import math
 import sys
 from fractions import Fraction as F
 
-sys.path.insert(0, __file__.rsplit("/", 2)[0])
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from anticythere import astro, geometry as geo, i18n            # noqa: E402
 from anticythere import layout as lay                            # noqa: E402
@@ -96,6 +97,18 @@ def test_dials():
     m.turns = 3 * saros_years
     check(abs(m.outputs().exeligmos - 1.0) < 1e-9,
           "3 Saros -> exeligmos : 1 tour complet")
+    # bug de frontiere attrape par l'audit SageMath : a exactement 1 Saros,
+    # (1/3 % 1)*3 = 0,999... en flottant -> secteur 1 (« +0 h ») au lieu de 2
+    m.turns = saros_years
+    o = m.outputs()
+    check(o.exeligmos_hours == 8,
+          f"apres exactement 1 Saros : correction +8 h (lu {o.exeligmos_hours})")
+    m.turns = 2 * saros_years
+    check(m.outputs().exeligmos_hours == 16,
+          "apres exactement 2 Saros : correction +16 h")
+    m.turns = 3 * saros_years
+    check(m.outputs().exeligmos_hours == 0,
+          "apres 3 Saros : retour a +0 h")
 
 
 def test_planets():
@@ -224,8 +237,8 @@ def test_i18n():
     import glob
     import re
     used = set()
-    root = __file__.rsplit("/", 2)[0]
-    for path in glob.glob(root + "/anticythere/*.py"):
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for path in glob.glob(os.path.join(root, "anticythere", "*.py")):
         with open(path, encoding="utf-8") as fh:
             used |= set(re.findall(r'tr\(\s*[\'"]([a-z0-9_.]+)[\'"]', fh.read()))
     unknown = sorted(k for k in used if k not in i18n.T)
