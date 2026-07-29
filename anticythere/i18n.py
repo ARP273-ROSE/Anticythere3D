@@ -21,6 +21,8 @@ T: dict[str, dict[str, str]] = {
     # -------------------------------------------------------------- menus
     "menu.file": {"fr": "&Fichier", "en": "&File"},
     "menu.file.screenshot": {"fr": "Capture d'écran…", "en": "Screenshot…"},
+    "menu.file.export": {"fr": "Exporter les valeurs (CSV)…",
+                         "en": "Export readings (CSV)…"},
     "menu.file.svg": {"fr": "Exporter en SVG (vectoriel)…",
                       "en": "Export as SVG (vector)…"},
     "menu.file.pdf": {"fr": "Exporter en PDF (vectoriel, A3)…",
@@ -48,6 +50,51 @@ T: dict[str, dict[str, str]] = {
                           "en": "The mathematics of the mechanism"},
     "menu.help.shortcuts": {"fr": "Raccourcis clavier", "en": "Keyboard shortcuts"},
     "menu.help.about": {"fr": "À propos", "en": "About"},
+    "menu.help.update": {"fr": "Rechercher une mise à jour…",
+                         "en": "Check for updates…"},
+    "menu.help.update.tip": {
+        "fr": "Interroge les versions publiées sur GitHub et propose\n"
+              "d'installer la plus récente.",
+        "en": "Queries the releases published on GitHub and offers to\n"
+              "install the newest one."},
+    "menu.file.stl": {"fr": "Exporter les roues en STL…",
+                      "en": "Export gears as STL…"},
+    "menu.file.stl.tip": {
+        "fr": "Écrit un fichier STL par roue, prêt à trancher, avec le jeu\n"
+              "d'impression et l'alésage déjà appliqués, plus une nomenclature.",
+        "en": "Writes one STL per gear, ready to slice, with printing clearance\n"
+              "and bore already applied, plus a bill of materials."},
+    "stl.note": {
+        "fr": "Jeu de 0,15 mm retiré aux dents, alésage 3,2 mm (axe acier de "
+              "3 mm).\nLes roues à bras sont des maillages composites : les "
+              "trancheurs les fusionnent sans problème.",
+        "en": "0.15 mm clearance removed from the teeth, 3.2 mm bore (3 mm "
+              "steel rod).\nSpoked gears are composite meshes; slicers merge "
+              "them without trouble."},
+
+    # ------------------------------------------------------- mise à jour
+    "update.checking": {"fr": "Recherche d'une mise à jour…",
+                        "en": "Checking for updates…"},
+    "update.available": {
+        "fr": "La version {version} est disponible.\nVous utilisez la {current}.\n\n"
+              "Voulez-vous l'installer maintenant ?",
+        "en": "Version {version} is available.\nYou are running {current}.\n\n"
+              "Install it now?"},
+    "update.install": {"fr": "Installer", "en": "Install"},
+    "update.later": {"fr": "Plus tard", "en": "Later"},
+    "update.downloading": {"fr": "Téléchargement…", "en": "Downloading…"},
+    "update.downloaded": {
+        "fr": "Téléchargé ici :\n{path}\n\nComme le programme tourne depuis les "
+              "sources, il n'est pas remplacé automatiquement.",
+        "en": "Downloaded to:\n{path}\n\nSince the program runs from source, it "
+              "is not replaced automatically."},
+    "update.manual": {
+        "fr": "Aucun fichier téléchargeable dans cette version : "
+              "va le chercher sur la page des versions.",
+        "en": "No downloadable file in this release: fetch it from the "
+              "releases page."},
+    "update.failed": {"fr": "La mise à jour a échoué : {error}",
+                      "en": "Update failed: {error}"},
 
     # ---------------------------------------------------------- commandes
     "ctrl.title": {"fr": "Commandes", "en": "Controls"},

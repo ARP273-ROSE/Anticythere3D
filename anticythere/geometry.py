@@ -58,27 +58,59 @@ def gear_outline(n_teeth: int, module: float, profile: str = "triangular",
                          rb * (math.sin(t) - t * math.cos(t))])
 
     t_max = math.sqrt(max((ra / rb) ** 2 - 1.0, 1e-9))
-    ts = np.linspace(0.0, t_max, pts_per_flank + 1)
+    # Une dent s'AFFINE en montant : l'angle balayé par le flanc entre le
+    # cercle de base et la tête vaut (t - arctan t). Si cet angle dépasse la
+    # demi-épaisseur, les deux flancs se croiseraient et la dent se
+    # refermerait sur elle-même — c'est le phénomène de pointe de dent, réel
+    # sur les petites roues. On borne alors le rayon de tête.
+    def swept(t):
+        """Angle balayé depuis le cercle PRIMITIF (et non depuis la base :
+        le flanc a déjà tourné de inv(alpha) pour aller de l'un à l'autre)."""
+        return (t - math.atan(t)) - inv_a
+
+    top_min = 0.12 * half            # épaisseur minimale conservée au sommet
+    if swept(t_max) > half - top_min:
+        lo, hi = 0.0, t_max
+        for _ in range(40):
+            mid = 0.5 * (lo + hi)
+            if swept(mid) > half - top_min:
+                hi = mid
+            else:
+                lo = mid
+        t_max = lo
+
+    # Le flanc ne commence pas au cercle de base mais au CREUX de dent : dès
+    # que N dépasse ~40, le creux (rp - 1.25 m) est au-dessus du cercle de
+    # base, et démarrer plus bas ferait balayer au flanc un angle énorme,
+    # jusqu'à recouvrir la dent voisine.
+    t_min = math.sqrt(max((max(rf, rb) / rb) ** 2 - 1.0, 0.0))
+    ts = np.linspace(t_min, t_max, pts_per_flank + 1)
     flank = np.array([involute(t) for t in ts])
-    # recale le flanc pour que l'épaisseur au primitif soit correcte
-    phi = math.atan2(flank[0, 1], flank[0, 0])
-    rot = -(phi + inv_a) + half
+    # Recalage sur le CERCLE PRIMITIF, seule référence valable : c'est là que
+    # l'épaisseur de dent vaut la moitié du pas. Se caler sur le premier point
+    # du flanc serait faux, puisqu'il ne part plus du cercle de base.
+    t_pitch = math.tan(alpha)              # car (rp/rb)^2 - 1 = tan^2(alpha)
+    p_pitch = involute(t_pitch)
+    phi_pitch = math.atan2(p_pitch[1], p_pitch[0])
+    rot = -phi_pitch - half
     c, s = math.cos(rot), math.sin(rot)
     R = np.array([[c, -s], [s, c]])
     flank = flank @ R.T
 
+    pitch_half = math.pi / n_teeth        # demi-pas angulaire : milieu du creux
     pts = []
     for i in range(n_teeth):
         a = 2.0 * math.pi * i / n_teeth
         c, s = math.cos(a), math.sin(a)
         Rt = np.array([[c, -s], [s, c]])
-        right = flank @ Rt.T
-        left = (flank * np.array([1.0, -1.0])) @ Rt.T
-        # pied -> flanc droit -> tête -> flanc gauche (inversé) -> pied
-        pts.append([rf * math.cos(a - half * 1.6), rf * math.sin(a - half * 1.6)])
-        pts.extend(right.tolist())
-        pts.extend(left[::-1].tolist())
-        pts.append([rf * math.cos(a + half * 1.6), rf * math.sin(a + half * 1.6)])
+        left = flank @ Rt.T                             # pied à a - half
+        right = (flank * np.array([1.0, -1.0])) @ Rt.T  # miroir : pied à a + half
+        # contour strictement croissant en angle : fond de creux, flanc gauche
+        # qui monte, sommet, flanc droit redescendu — le creux suivant est
+        # apporté par la dent suivante.
+        pts.append([rf * math.cos(a - pitch_half), rf * math.sin(a - pitch_half)])
+        pts.extend(left.tolist())
+        pts.extend(right[::-1].tolist())
     return np.array(pts, dtype=np.float32)
 
 

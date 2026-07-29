@@ -257,6 +257,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_pdf.setEnabled(False)
         self.act_export = self.m_file.addAction("", self._export_csv)
         self.m_file.addSeparator()
+        self.act_stl = self.m_file.addAction("", self._export_stl)
+        self.m_file.addSeparator()
         self.act_quit = self.m_file.addAction("", self.close)
         self.act_quit.setShortcut("Ctrl+Q")
 
@@ -278,6 +280,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.lang_actions[code] = a
 
         self.m_help = mb.addMenu("")
+        self.act_update = self.m_help.addAction(
+            "", lambda: self._check_update(manual=True))
+        self.m_help.addSeparator()
         self.act_manual = self.m_help.addAction("", lambda: self._help("manual"))
         self.act_science = self.m_help.addAction("", lambda: self._help("science"))
         self.act_keys = self.m_help.addAction("", lambda: self._help("shortcuts"))
@@ -371,6 +376,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_svg.setToolTip(tr("menu.file.svg.tip", L))
         self.act_pdf.setToolTip(tr("menu.file.svg.tip", L))
         self.act_export.setText(tr("menu.file.export", L))
+        self.act_stl.setText(tr("menu.file.stl", L))
+        self.act_stl.setToolTip(tr("menu.file.stl.tip", L))
         self.act_quit.setText(tr("menu.file.quit", L))
         self.m_view.setTitle(tr("menu.view", L))
         self.act_front.setText(tr("menu.view.front", L))
@@ -378,6 +385,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_iso.setText(tr("menu.view.iso", L))
         self.m_lang.setTitle(tr("menu.lang", L))
         self.m_help.setTitle(tr("menu.help", L))
+        self.act_update.setText(tr("menu.help.update", L))
+        self.act_update.setToolTip(tr("menu.help.update.tip", L))
         self.act_manual.setText(tr("menu.help.manual", L))
         self.act_science.setText(tr("menu.help.science", L))
         self.act_keys.setText(tr("menu.help.shortcuts", L))
@@ -584,6 +593,92 @@ class MainWindow(QtWidgets.QMainWindow):
         self.txt_expl.setHtml(
             f"<h3 style='color:#8ab4d8'>{title}</h3><p>{body}</p>")
 
+    # ------------------------------------------------------ mise à jour
+    def _check_update(self, manual: bool = False):
+        """Interroge GitHub sans bloquer l'interface."""
+        from . import updater
+
+        self._updater_thread = QtCore.QThread(self)
+        self._updater_worker = _UpdateChecker()
+        self._updater_worker.moveToThread(self._updater_thread)
+        self._updater_thread.started.connect(self._updater_worker.run)
+        self._updater_worker.done.connect(
+            lambda state: self._update_result(state, manual))
+        self._updater_worker.done.connect(self._updater_thread.quit)
+        self._updater_thread.start()
+        if manual:
+            self.status.showMessage(tr("update.checking", self.lang))
+
+    def _update_result(self, state: dict, manual: bool):
+        from . import updater
+
+        L = self.lang
+        self.status.showMessage(updater.summary(state, L))
+        if not state.get("available"):
+            if manual:
+                QtWidgets.QMessageBox.information(
+                    self, tr("menu.help.update", L), updater.summary(state, L))
+            return
+
+        box = QtWidgets.QMessageBox(self)
+        box.setWindowTitle(tr("menu.help.update", L))
+        box.setText(tr("update.available", L, version=state["version"],
+                       current=updater.current_version()))
+        notes = (state.get("notes") or "").strip()
+        if notes:
+            box.setDetailedText(notes[:4000])
+        if state.get("url"):
+            box.setStandardButtons(
+                QtWidgets.QMessageBox.StandardButton.Yes
+                | QtWidgets.QMessageBox.StandardButton.No)
+            box.button(QtWidgets.QMessageBox.StandardButton.Yes).setText(
+                tr("update.install", L))
+            box.button(QtWidgets.QMessageBox.StandardButton.No).setText(
+                tr("update.later", L))
+        else:
+            box.setInformativeText(tr("update.manual", L))
+            box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok)
+        if box.exec() != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        self._download_update(state)
+
+    def _download_update(self, state: dict):
+        from . import updater
+
+        L = self.lang
+        dlg = QtWidgets.QProgressDialog(
+            tr("update.downloading", L), tr("ctrl.pause", L), 0, 100, self)
+        dlg.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
+        dlg.setAutoClose(False)
+        dlg.show()
+
+        def progress(done, total):
+            if total:
+                dlg.setValue(int(100 * done / total))
+            QtWidgets.QApplication.processEvents()
+
+        try:
+            path = updater.download(state["url"], progress=progress)
+        except Exception as exc:                     # réseau, disque, droits
+            dlg.close()
+            QtWidgets.QMessageBox.warning(
+                self, tr("menu.help.update", L),
+                tr("update.failed", L, error=str(exc)))
+            return
+        dlg.close()
+
+        if not updater.running_as_frozen():
+            QtWidgets.QMessageBox.information(
+                self, tr("menu.help.update", L),
+                tr("update.downloaded", L, path=path))
+            return
+        if updater.apply_update(path):
+            QtWidgets.QApplication.quit()
+        else:
+            QtWidgets.QMessageBox.warning(
+                self, tr("menu.help.update", L),
+                tr("update.failed", L, error=path))
+
     # ----------------------------------------------------------------- aide
     def _help(self, which: str):
         L = self.lang
@@ -682,6 +777,27 @@ class MainWindow(QtWidgets.QMainWindow):
         if path and self.view_vec.export_pdf(path):
             self.status.showMessage(tr("msg.saved", self.lang, path=path))
 
+    def _export_stl(self):
+        """Sort les 33 roues en STL, prêtes à trancher."""
+        from .stl_export import export_all, summary
+
+        d = QtWidgets.QFileDialog.getExistingDirectory(
+            self, tr("menu.file.stl", self.lang))
+        if not d:
+            return
+        profile = "triangular" if self.cmb_profile.currentIndex() == 0 \
+            else "involute"
+        QtWidgets.QApplication.setOverrideCursor(
+            QtCore.Qt.CursorShape.WaitCursor)
+        try:
+            rows = export_all(d, profile=profile)
+        finally:
+            QtWidgets.QApplication.restoreOverrideCursor()
+        QtWidgets.QMessageBox.information(
+            self, tr("menu.file.stl", self.lang),
+            summary(rows) + "\n\n" + tr("stl.note", self.lang))
+        self.status.showMessage(tr("msg.saved", self.lang, path=d))
+
     def _export_csv(self):
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, tr("menu.file.export", self.lang), "anticythere.csv",
@@ -694,3 +810,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 wr.writerow([self.table.item(r, 0).text(),
                              self.table.item(r, 1).text()])
         self.status.showMessage(tr("msg.saved", self.lang, path=path))
+
+
+class _UpdateChecker(QtCore.QObject):
+    """Interroge l'API GitHub dans un fil séparé — l'interface reste fluide."""
+
+    done = QtCore.pyqtSignal(dict)
+
+    def run(self):
+        from . import updater
+        try:
+            state = updater.check()
+        except Exception as exc:                      # ne jamais faire tomber l'app
+            state = {"ok": False, "available": False, "error": str(exc)}
+        self.done.emit(state)
