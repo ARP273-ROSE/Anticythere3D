@@ -1,0 +1,304 @@
+"""
+Vue 3D du mécanisme (pyqtgraph.opengl) et repli 2D (QPainter) si OpenGL
+n'est pas disponible.
+
+3D view of the mechanism, with a 2D fallback when OpenGL is unavailable.
+"""
+
+from __future__ import annotations
+
+import math
+
+import numpy as np
+from PyQt6 import QtCore, QtGui, QtWidgets
+
+from . import geometry as geo
+from . import layout as lay
+from .view2d import VectorView
+
+
+def _qcolor(rgba):
+    return QtGui.QColor.fromRgbF(*rgba[:3], rgba[3] if len(rgba) > 3 else 1.0)
+
+try:                                            # OpenGL optionnel
+    import pyqtgraph.opengl as gl
+    HAS_GL = True
+except Exception:                               # pragma: no cover
+    gl = None
+    HAS_GL = False
+
+
+# ---------------------------------------------------------------------------
+class MechanismView(QtWidgets.QWidget):
+    """Fabrique commune : renvoie la vue 3D si possible, sinon la vue 2D."""
+
+    @staticmethod
+    def create(parent=None):
+        """Vue 3D si OpenGL est là, sinon la vue vectorielle (jamais d'échec)."""
+        if HAS_GL:
+            try:
+                return GLMechanismView(parent)
+            except Exception:
+                pass
+        return VectorView(parent)
+
+
+# ---------------------------------------------------------------------------
+if HAS_GL:
+
+    class GLMechanismView(gl.GLViewWidget):
+        """Rendu 3D : une pièce = un GLMeshItem, animé par une matrice."""
+
+        def __init__(self, parent=None):
+            # rotationMethod='quaternion' : rotation LIBRE dans tous les sens.
+            # En mode 'euler' (défaut), l'élévation est bloquée à ±90° et on ne
+            # peut pas retourner l'objet.
+            super().__init__(parent, rotationMethod="quaternion")
+            self.setCameraPosition(distance=360, elevation=24, azimuth=-62)
+            self.opts["center"] = QtGui.QVector3D(*lay.CENTER)
+            self.setBackgroundColor(_qcolor(lay.BACKGROUND))
+            self.profile = "triangular"
+            self.explode = 0.0
+            self.highlight = None
+            self.show_case = True
+            self.show_plates = True
+            self._gears: dict[str, object] = {}
+            self._arbors: dict[str, object] = {}
+            self._pointers: dict[str, object] = {}
+            self._case: list = []
+            self._plates: list = []
+            self._dials: list = []
+            self._angles: dict[str, float] = {}
+            self._carrier = 0.0
+            self.build()
+
+        # ------------------------------------------------------- construction
+        def _add(self, mesh, color, draw_edges=False):
+            v, f = mesh
+            md = gl.MeshData(vertexes=v, faces=f)
+            item = gl.GLMeshItem(meshdata=md, smooth=False, shader="shaded",
+                                 color=color, drawEdges=draw_edges,
+                                 edgeColor=(0, 0, 0, 0.25),
+                                 glOptions="opaque" if color[3] >= 0.99
+                                 else "translucent")
+            self.addItem(item)
+            return item
+
+        def build(self):
+            from .kinematics import TEETH
+
+            for it in list(self.items):
+                self.removeItem(it)
+            self._gears.clear(); self._arbors.clear()
+            self._pointers.clear(); self._case.clear(); self._plates.clear()
+            self._dials.clear()
+
+            for name, teeth in TEETH.items():
+                if name not in lay.LEVELS:
+                    continue
+                sub = lay.SUBSYSTEM_OF.get(name, "input")
+                color = lay.COLORS[sub]
+                if name in lay.SPOKED:
+                    mesh = geo.spoked_gear_mesh(
+                        teeth, lay.MODULE, lay.GEAR_THICKNESS, z0=0.0,
+                        bore=lay.ARBOR_RADIUS + 0.4,
+                        spokes=lay.SPOKED[name], profile=self.profile)
+                else:
+                    mesh = geo.gear_mesh(teeth, lay.MODULE, lay.GEAR_THICKNESS,
+                                         z0=0.0, bore=lay.ARBOR_RADIUS + 0.4,
+                                         profile=self.profile)
+                self._gears[name] = self._add(mesh, color)
+
+            for arbor in lay.ARBORS:
+                z0, z1 = lay.arbor_extent(arbor)
+                mesh = geo.cylinder_mesh(lay.ARBOR_RADIUS, z0, z1 - z0, segments=14)
+                self._arbors[arbor] = self._add(mesh, lay.COLORS["arbor"])
+
+            # plans de référence de la façade et du dos
+            zf = lay.level_z(1) + 8.0
+            zb = lay.level_z(16) - 8.0
+            self.z_front = zf + 8.0          # face extérieure du coffret
+            self.z_back = zb - 10.0
+
+            # aiguilles : maillage créé À PLAT (z0 = 0), c'est set_pointers qui
+            # les place — sinon le décalage en z serait appliqué deux fois.
+            self._pointers["sun"] = self._add(
+                geo.pointer_mesh(104.0, 0.0), (0.85, 0.65, 0.15, 1.0))
+            self._pointers["moon"] = self._add(
+                geo.pointer_mesh(86.0, 0.0), (0.80, 0.82, 0.86, 1.0))
+            self._pointers["metonic"] = self._add(
+                geo.pointer_mesh(58.0, 0.0), lay.COLORS["metonic"])
+            self._pointers["saros"] = self._add(
+                geo.pointer_mesh(52.0, 0.0), lay.COLORS["saros"])
+
+            # anneau du zodiaque, visible même machine ouverte
+            self._dials = [self._add(
+                geo.disc_mesh(112.0, zf - 2.0, 1.2, inner=96.0),
+                lay.COLORS["dial"])]
+            self._dials.append(self._add(
+                geo.disc_mesh(14.0, zf - 2.0, 1.6, inner=3.0),
+                lay.COLORS["dial"]))
+            self._dials.append(self._add(
+                geo.spiral_mesh(5, 235, 22.0, 58.0, zb + 1.2),
+                lay.COLORS["metonic"]))
+            self._dials.append(self._add(
+                geo.spiral_mesh(4, 223, 20.0, 52.0, zb - 6.0),
+                lay.COLORS["saros"]))
+
+            # platines : plaques de bois intérieures qui portent les arbres
+            for z in (lay.level_z(1) + 4.0, lay.level_z(16) - 5.0):
+                self._plates.append(self._add(
+                    geo.translate(geo.plate_mesh(lay.CASE_WIDTH - 24.0,
+                                                 lay.CASE_HEIGHT - 24.0, z, 1.5),
+                                  lay.CASE_CX, lay.CASE_CY, 0.0),
+                    lay.COLORS["plate"]))
+
+            self._build_case(zf, zb)
+            self.apply_visibility()
+
+        # --------------------------------------------------------- boîtier
+        def _build_case(self, zf: float, zb: float):
+            """La machine FERMÉE : coffret de bois, plaques de bronze gravées,
+            manivelle latérale. Tout ceci disparaît d'un clic."""
+            W, H = lay.CASE_WIDTH, lay.CASE_HEIGHT
+            cx, cy = lay.CASE_CX, lay.CASE_CY
+            wood = (0.40, 0.27, 0.15, 1.0)
+            bronze = (0.62, 0.50, 0.24, 1.0)
+            z_front, z_back = self.z_front, self.z_back
+            dark = (0.30, 0.24, 0.12, 1.0)
+
+            # coffret de bois : quatre flancs + fond
+            self._case = [self._add(
+                geo.translate(geo.case_mesh(W, H, (z_front - z_back), wall=6.0),
+                              cx, cy, (z_front + z_back) / 2.0), wood)]
+            self._case.append(self._add(
+                geo.translate(geo.plate_mesh(W, H, z_back, 3.0),
+                              cx, cy, 0.0), wood))
+            # façade de bronze pleine : c'est elle qui porte les cadrans
+            self._case.append(self._add(
+                geo.translate(geo.plate_mesh(W, H, z_front - 3.0, 3.0),
+                              cx, cy, 0.0), bronze))
+            # cadran avant : disque gravé, anneau du zodiaque et anneau
+            # calendaire de 365 jours
+            self._case.append(self._add(
+                geo.disc_mesh(122.0, z_front, 1.0, inner=3.0),
+                (0.70, 0.58, 0.28, 1.0)))
+            self._case.append(self._add(
+                geo.graduation_ring(96.0, 112.0, z_front + 1.0, 0.7, 72,
+                                    width=1.1, every=6, long_extra=7.0), dark))
+            self._case.append(self._add(
+                geo.graduation_ring(114.0, 121.0, z_front + 1.0, 0.7, 73,
+                                    width=0.8), dark))
+            # cadrans arrière : spirales gravées sur le fond
+            self._case.append(self._add(
+                geo.spiral_mesh(5, 235, 22.0, 58.0, z_back - 1.4), dark))
+            self._case.append(self._add(
+                geo.spiral_mesh(4, 223, 20.0, 52.0, z_back - 2.6), dark))
+            # manivelle sur le flanc, dans l'axe de la roue a1
+            ax, ay = lay.ARBORS["a"]
+            self._case.append(self._add(
+                geo.translate(geo.crank_mesh(z_front - 2.0), ax, ay, 0.0),
+                (0.55, 0.42, 0.20, 1.0)))
+            # bille bicolore de la phase de Lune
+            self._case.append(self._add(
+                geo.sphere_mesh(7.0, z_front + 7.0), (0.92, 0.90, 0.84, 1.0)))
+
+        # ------------------------------------------------------------ options
+        def set_profile(self, profile: str):
+            if profile != self.profile:
+                self.profile = profile
+                self.build()
+                self.set_angles(self._angles, self._carrier)
+
+        def apply_visibility(self):
+            for it in self._case:
+                it.setVisible(self.show_case)
+            for it in self._plates:
+                it.setVisible(self.show_plates)
+            for name, item in self._gears.items():
+                sub = lay.SUBSYSTEM_OF.get(name, "input")
+                if self.highlight and sub != self.highlight:
+                    item.setColor((0.55, 0.55, 0.55, 0.18))
+                    item.setGLOptions("translucent")
+                else:
+                    item.setColor(lay.COLORS[sub])
+                    item.setGLOptions("opaque")
+
+        # ---------------------------------------------------------- animation
+        def set_angles(self, angles: dict, carrier_turns: float):
+            """Place chaque pièce : rotation propre + orbite du porte-satellite."""
+            self._angles = angles
+            self._carrier = carrier_turns
+            ex, ey = lay.ARBORS["e"]
+            ca = 2.0 * math.pi * carrier_turns
+
+            for name, item in self._gears.items():
+                x, y, z = lay.gear_position(name)
+                if name in ("k1", "k2"):
+                    # les axes k et K sont plantés sur e3 : ils orbitent
+                    dx, dy = x - ex, y - ey
+                    c, s = math.cos(ca), math.sin(ca)
+                    x, y = ex + c * dx - s * dy, ey + s * dx + c * dy
+                z += self.explode * (lay.LEVELS[name] - 8.5) * 6.0
+                m = QtGui.QMatrix4x4()
+                m.translate(x, y, z)
+                m.rotate(360.0 * angles.get(name, 0.0), 0.0, 0.0, 1.0)
+                item.setTransform(m)
+
+            for arbor, item in self._arbors.items():
+                x, y = lay.ARBORS[arbor]
+                if arbor in ("k", "K"):
+                    dx, dy = x - ex, y - ey
+                    c, s = math.cos(ca), math.sin(ca)
+                    x, y = ex + c * dx - s * dy, ey + s * dx + c * dy
+                m = QtGui.QMatrix4x4()
+                m.translate(x, y, 0.0)
+                item.setTransform(m)
+
+        def set_pointers(self, sun_turns, moon_turns, metonic_turns, saros_turns):
+            zb = self.z_back
+            for key, turns, z in (("sun", sun_turns, self.z_front + 2.5),
+                                  ("moon", moon_turns, self.z_front + 5.0),
+                                  ("metonic", metonic_turns, zb - 4.0),
+                                  ("saros", saros_turns, zb - 7.0)):
+                item = self._pointers.get(key)
+                if item is None:
+                    continue
+                m = QtGui.QMatrix4x4()
+                m.translate(0.0, 0.0, z)
+                m.rotate(-360.0 * turns, 0.0, 0.0, 1.0)
+                item.setTransform(m)
+
+        # ------------------------------------------------------- navigation
+        def zoom(self, factor: float):
+            """Rapproche (factor < 1) ou éloigne (factor > 1) la caméra."""
+            d = self.opts["distance"] * factor
+            self.setCameraParams(distance=max(40.0, min(d, 3000.0)))
+            self.update()
+
+        def rotate(self, d_azim: float, d_elev: float):
+            """Orbite libre — aucun blocage aux pôles en mode quaternion."""
+            self.orbit(d_azim, d_elev)
+            self.update()
+
+        def roll(self, angle: float):
+            """Roulis autour de l'axe de visée (3ᵉ degré de liberté)."""
+            q = QtGui.QQuaternion.fromAxisAndAngle(0.0, 0.0, 1.0, angle)
+            self.opts["rotation"] = q * self.opts["rotation"]
+            self.update()
+
+        def reset_view(self):
+            self.look_at("iso")
+
+        def look_at(self, mode: str):
+            if mode == "front":
+                self.setCameraPosition(distance=330, elevation=88, azimuth=-90)
+            elif mode == "back":
+                self.setCameraPosition(distance=330, elevation=-88, azimuth=-90)
+            else:
+                self.setCameraPosition(distance=360, elevation=24, azimuth=-62)
+            self.opts["center"] = QtGui.QVector3D(*lay.CENTER)
+            self.update()
+
+
+# ---------------------------------------------------------------------------
