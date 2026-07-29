@@ -59,6 +59,56 @@ PARAPEGMA_LETTERS = "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ"
 #: jeux panhelléniques du cadran des Jeux
 GAMES_GREEK = ["ΙΣΘΜΙΑ", "ΟΛΥΜΠΙΑ", "ΝΕΜΕΑ", "ΠΥΘΙΑ"]
 
+#: les douze mois du calendrier corinthien, gravés case par case dans la
+#: spirale métonique. Attestés sur les fragments (Freeth *et al.*, Nature 454,
+#: 2008). La forme abrégée sert seule au rendu : une case du tour extérieur
+#: fait 6,7 mm de large, un nom complet n'y tient pas — sur l'original les
+#: lettres font 1,5 mm de haut, illisibles à l'écran.
+CORINTHIAN_MONTHS = [
+    ("ΦΟΙΝΙΚΑΙΟΣ", "ΦΟΙΝ"), ("ΚΡΑΝΕΙΟΣ", "ΚΡΑΝ"), ("ΛΑΝΟΤΡΟΠΙΟΣ", "ΛΑΝΟ"),
+    ("ΜΑΧΑΝΕΥΣ", "ΜΑΧΑ"), ("ΔΩΔΕΚΑΤΕΥΣ", "ΔΩΔΕ"), ("ΕΥΚΛΕΙΟΣ", "ΕΥΚΛ"),
+    ("ΑΡΤΕΜΙΣΙΟΣ", "ΑΡΤΕ"), ("ΨΥΔΡΕΥΣ", "ΨΥΔΡ"), ("ΓΑΜΕΙΛΙΟΣ", "ΓΑΜΕ"),
+    ("ΑΓΡΙΑΝΙΟΣ", "ΑΓΡΙ"), ("ΠΑΝΑΜΟΣ", "ΠΑΝΑ"), ("ΑΠΕΛΛΑΙΟΣ", "ΑΠΕΛ"),
+]
+
+#: chiffres grecs 1 à 19, pour numéroter les années du cycle métonique
+GREEK_NUMERALS = ["Α", "Β", "Γ", "Δ", "Ε", "Ϛ", "Ζ", "Η", "Θ", "Ι",
+                  "ΙΑ", "ΙΒ", "ΙΓ", "ΙΔ", "ΙΕ", "ΙϚ", "ΙΖ", "ΙΗ", "ΙΘ"]
+
+#: années embolismiques du cycle métonique (13 mois au lieu de 12). Le cycle
+#: en compte exactement 7 : 235 = 19 × 12 + 7. Critère (12k) mod 19 < 7,
+#: vérifié dans `anticythere_cadrans2.sage` — la somme retombe sur 235 pile.
+EMBOLISMIC_YEARS = {2, 5, 8, 10, 13, 16, 19}
+
+
+def metonic_year_starts() -> list[int]:
+    """Numéro de mois (0-234) où commence chacune des 19 années."""
+    out, mois = [], 0
+    for k in range(1, 20):
+        out.append(mois)
+        mois += 13 if k in EMBOLISMIC_YEARS else 12
+    assert mois == 235, mois
+    return out
+
+
+#: cases du Saros portant un glyphe d'éclipse — Η pour le Soleil (Ἥλιος),
+#: Σ pour la Lune (Σελήνη), comme sur la plaque.
+#:
+#: ⚠️ **Reconstitué, pas copié.** Le motif de la plaque originale n'est connu
+#: que par fragments. Celui-ci est *calculé* par le module `astro` du
+#: programme — syzygie proche d'un nœud, exactement le critère que la machine
+#: mécanise — sur les 223 mois d'un cycle de Saros à partir de janvier 2000.
+#: Il donne 48 cases solaires et 32 lunaires, un peu plus que les glyphes
+#: gravés : les limites retenues incluent des éclipses rasantes que le graveur
+#: n'a pas notées.
+SAROS_SOLAR = {0, 1, 6, 7, 12, 18, 24, 30, 36, 42, 47, 48, 53, 54, 59, 65,
+               71, 77, 83, 88, 89, 95, 100, 106, 107, 112, 118, 124, 129,
+               130, 136, 141, 147, 148, 153, 159, 165, 171, 177, 182, 183,
+               188, 189, 194, 200, 206, 212, 218}
+SAROS_LUNAR = {0, 6, 12, 18, 30, 35, 41, 47, 53, 59, 71, 76, 82, 88, 94,
+               100, 106, 112, 123, 129, 135, 141, 147, 153, 159, 164, 176,
+               182, 188, 194, 200, 217}
+
 #: corrections de l'exeligmos : 0, 8 et 16 heures, en chiffres grecs
 EXELIGMOS_LABELS = ["0", "Η", "ΙϚ"]
 
@@ -170,7 +220,15 @@ def paint_front_dial(p: QtGui.QPainter, cx: float, cy: float, R: float,
 
 
 # ============================================================= FACE ARRIÈRE
-def _spiral(p, cx, cy, s, turns, cells, r0, r1, label):
+def _spiral(p, cx, cy, s, turns, cells, r0, r1, label,
+            cell_text=None, strong=(), title_below=False):
+    """Une spirale d'Archimède graduée en `cells` cases.
+
+    `cell_text(k)` renvoie l'inscription à graver dans la case k (ou None) ;
+    `strong` est l'ensemble des cases dont le trait de séparation est
+    renforcé — sur la métonique, les débuts d'année. Sans inscriptions, une
+    spirale n'est qu'un décor : la machine grave chaque case.
+    """
     path = QtGui.QPainterPath()
     n = 1400
     for i in range(n + 1):
@@ -182,26 +240,69 @@ def _spiral(p, cx, cy, s, turns, cells, r0, r1, label):
     p.setPen(QtGui.QPen(ENGRAVE, s * 0.0032))
     p.setBrush(QtCore.Qt.BrushStyle.NoBrush)
     p.drawPath(path)
+
+    # largeur du couloir de la spirale : c'est l'écart radial entre deux
+    # tours, donc la hauteur utile d'une case
+    lane = (r1 - r0) / turns
+    w = lane * 0.42                # demi-trait : en deçà de 0,5, les traits
+    dtheta = turns * 2.0 * math.pi / cells        # angle d'une case
     for k in range(cells):
-        t = turns * 2.0 * math.pi * k / cells
+        t = dtheta * k
         r = r0 + (r1 - r0) * k / cells
         a = t - math.pi / 2
-        w = (r1 - r0) / turns * 0.5
-        p.setPen(QtGui.QPen(ENGRAVE_SOFT, s * 0.0009))
+        fort = k in strong
+        p.setPen(QtGui.QPen(ENGRAVE if fort else ENGRAVE_SOFT,
+                            s * (0.0020 if fort else 0.0009)))
         p.drawLine(QtCore.QPointF(cx + (r - w) * math.cos(a),
                                   cy - (r - w) * math.sin(a)),
                    QtCore.QPointF(cx + (r + w) * math.cos(a),
                                   cy - (r + w) * math.sin(a)))
-    # titre AU-DESSUS de la spirale : au centre, il serait caché par le
-    # moyeu et l'aiguille
+
+    # Inscriptions : chaque case reçoit son texte, écrit tangentiellement et
+    # tourné pour suivre la spirale, comme sur la plaque. La taille est
+    # imposée par la **largeur d'arc réelle** de la case (r·dθ) : une police
+    # choisie sur la seule largeur du couloir déborde sur les cases voisines.
+    if cell_text is not None:
+        p.setPen(ENGRAVE)
+        f = p.font()
+        for k in range(cells):
+            got = cell_text(k)
+            if not got:
+                continue
+            txt, bold = got
+            t = dtheta * (k + 0.5)
+            # La ligne gravée passe au MILIEU du couloir : écrire au rayon
+            # exact de la spirale, c'est écrire sur le trait. On décale
+            # l'inscription vers l'extérieur du couloir.
+            r = r0 + (r1 - r0) * (k + 0.5) / cells + lane * 0.27
+            arc = r * dtheta
+            px = min(lane * 0.42, arc / len(txt) * 1.45)
+            if px < 2.0:                    # sous 2 px, ce n'est plus lisible
+                continue
+            f.setPixelSize(int(px)); f.setBold(bold); p.setFont(f)
+            a = t - math.pi / 2
+            p.save()
+            p.translate(cx + r * math.cos(a), cy - r * math.sin(a))
+            # le texte suit la tangente, et reste lisible tête en haut
+            deg = -math.degrees(a) - 90.0
+            if 90.0 < (deg % 360.0) < 270.0:
+                deg += 180.0
+            p.rotate(deg)
+            p.drawText(QtCore.QRectF(-arc / 2.0, -lane * 0.3, arc, lane * 0.6),
+                       QtCore.Qt.AlignmentFlag.AlignCenter, txt)
+            p.restore()
+
+    # titre hors de la spirale : au centre, il serait caché par le moyeu et
+    # l'aiguille. `title_below` évite qu'il tombe sur la spirale voisine.
     f = p.font(); f.setPixelSize(max(1, int(s * 0.016))); f.setBold(True)
     p.setFont(f); p.setPen(ENGRAVE)
-    p.drawText(QtCore.QRectF(cx - s * 0.2, cy - r1 - s * 0.030,
-                             s * 0.4, s * 0.026),
+    dy = (r1 + s * 0.006) if title_below else (-r1 - s * 0.030)
+    p.drawText(QtCore.QRectF(cx - s * 0.2, cy + dy, s * 0.4, s * 0.026),
                QtCore.Qt.AlignmentFlag.AlignCenter, label)
 
 
-def _small_dial(p, cx, cy, s, rad, sectors, labels, title):
+def _small_dial(p, cx, cy, s, rad, sectors, labels, title,
+                title_above=False):
     p.setPen(QtGui.QPen(ENGRAVE, s * 0.0026))
     p.setBrush(QtGui.QBrush(BRONZE_PALE))
     p.drawEllipse(QtCore.QPointF(cx, cy), rad, rad)
@@ -220,13 +321,17 @@ def _small_dial(p, cx, cy, s, rad, sectors, labels, title):
                                  cy - rr * math.sin(a) - rad * 0.14,
                                  rad, rad * 0.28),
                    QtCore.Qt.AlignmentFlag.AlignCenter, txt)
+    # le titre va sous le cadran, sauf quand le cadran du dessous est trop
+    # proche : les deux légendes se marcheraient dessus
     f.setPixelSize(max(1, int(rad * 0.17))); p.setFont(f)
-    p.drawText(QtCore.QRectF(cx - rad * 1.6, cy + rad * 1.08, rad * 3.2, rad * 0.5),
+    ty = (cy - rad * 1.58) if title_above else (cy + rad * 1.08)
+    p.drawText(QtCore.QRectF(cx - rad * 1.6, ty, rad * 3.2, rad * 0.5),
                QtCore.Qt.AlignmentFlag.AlignCenter, title)
 
 
 def paint_back_dial(p: QtGui.QPainter, cx: float, cy: float, R: float,
-                    lang: str = "fr", with_background: bool = True) -> None:
+                    lang: str = "fr", with_background: bool = True,
+                    mirrored: bool = True) -> None:
     """Spirale métonique (5 tours, 235 cases), spirale du Saros (4 tours,
     223 cases) et les petits cadrans — chacun DESSINÉ SUR SON ARBRE.
 
@@ -234,20 +339,27 @@ def paint_back_dial(p: QtGui.QPainter, cx: float, cy: float, R: float,
     métonique est portée par l'arbre n, celle du Saros par g, le callippique
     par o, l'exeligmos par i. Le cadran n'est plus un décor posé n'importe
     où : il est l'extrémité visible du train qui l'entraîne.
+
+    `mirrored` : cette face se regarde **par derrière**, donc en texture 3D
+    ses x sont inversés. La vue vectorielle, elle, ne retourne pas la scène —
+    elle doit passer ``mirrored=False``, sinon les cadrans partent du côté
+    opposé aux aiguilles qui les entraînent.
     """
     from . import layout as lay
 
     s = R / 0.485
     x0, y0 = cx - s / 2.0, cy - s / 2.0
     ppm = s / lay.BACK_DIAL_SPAN                   # pixels par millimètre
+    sx = -1.0 if mirrored else 1.0
+
+    def at_mm(mx, my):
+        """Position dessin d'un point (x, y) du plan de la machine, en mm.
+        y écran vers le haut, y texture vers le bas : toujours inversé."""
+        return (cx + sx * (mx - lay.CASE_CX) * ppm,
+                cy - (my - lay.CASE_CY) * ppm)
 
     def at(arbor):
-        """Position texture d'un arbre. La texture est affichée en miroir
-        (on regarde le dos) : x est inversé ; y écran vers le haut, y texture
-        vers le bas : inversé aussi."""
-        ax, ay = lay.ARBORS[arbor]
-        return (cx - (ax - lay.CASE_CX) * ppm,
-                cy - (ay - lay.CASE_CY) * ppm)
+        return at_mm(*lay.ARBORS[arbor])
 
     if with_background:
         # le fond épouse le boîtier réel (W × H mm), pas le carré de la
@@ -260,20 +372,62 @@ def paint_back_dial(p: QtGui.QPainter, cx: float, cy: float, R: float,
         p.setPen(QtGui.QPen(ENGRAVE_SOFT, s * 0.004))
         p.drawRect(QtCore.QRectF(cx - bw / 2.0, cy - bh / 2.0, bw, bh))
 
+    # --- spirale métonique : les mois corinthiens, année par année --------
+    starts = metonic_year_starts()
+    year_of = {}
+    for yr, first in enumerate(starts):
+        last = starts[yr + 1] if yr + 1 < len(starts) else 235
+        for mois in range(first, last):
+            year_of[mois] = (yr, mois - first)
+
+    def metonic_cell(k):
+        """(inscription, gras) de la case k, ou None."""
+        yr, rank = year_of[k]
+        if rank == 0:                      # début d'année : son numéro, en gras
+            return GREEK_NUMERALS[yr], True
+        if k >= starts[15]:                # tour extérieur : place pour un nom
+            return CORINTHIAN_MONTHS[rank % 12][1], False
+        return None
+
+    def saros_cell(k):
+        # Η = Ἥλιος (Soleil), Σ = Σελήνη (Lune) ; les deux si le mois porte
+        # une éclipse de chaque sorte
+        sol, lun = k in SAROS_SOLAR, k in SAROS_LUNAR
+        if sol and lun:
+            return "ΗΣ", True
+        if sol:
+            return "Η", True
+        if lun:
+            return "Σ", True
+        return None
+
     nx, ny = at("n")
     gx, gy = at("g")
     _spiral(p, nx, ny, s, 5, 235, lay.METONIC_RADIUS * 0.275 * ppm,
-            lay.METONIC_RADIUS * ppm, "ΜΕΤΩΝ · 235")
+            lay.METONIC_RADIUS * ppm, "ΜΕΤΩΝ · 235",
+            cell_text=metonic_cell, strong=set(starts))
+    # titre du Saros SOUS sa spirale : au-dessus, il tomberait dans la
+    # métonique — il ne reste que 7,75 mm entre les deux
     _spiral(p, gx, gy, s, 4, 223, lay.SAROS_RADIUS * 0.27 * ppm,
-            lay.SAROS_RADIUS * ppm, "ΣΑΡΟΣ · 223")
+            lay.SAROS_RADIUS * ppm, "ΣΑΡΟΣ · 223",
+            cell_text=saros_cell, strong={0, 56, 112, 168},
+            title_below=True)
+
+    # --- petits cadrans ---------------------------------------------------
+    # Rayons contraints : les arbres o et i ne sont distants que de 22,08 mm,
+    # et les deux cadrans se chevauchaient de 2,92 mm. Les rayons viennent de
+    # `anticythere_cadrans2.sage` (3 mm de jeu conservés).
     ox, oy = at("o")
     ix, iy = at("i")
-    _small_dial(p, ox, oy, s, 13.0 * ppm, 4, ["1", "2", "3", "4"], "ΚΑΛΛΙΠΠΟΣ")
-    _small_dial(p, ix, iy, s, 12.0 * ppm, 3, EXELIGMOS_LABELS, "ΕΞΕΛΙΓΜΟΣ")
-    # le cadran des Jeux n'a pas d'arbre modélisé : il reste gravé, dans le
-    # coin libre en haut à gauche de la plaque, comme un médaillon
-    _small_dial(p, cx - 95.0 * ppm, cy + 95.0 * ppm, s, 13.0 * ppm, 4,
-                GAMES_GREEK, "ΑΓΩΝΕΣ")
+    _small_dial(p, ox, oy, s, lay.CALLIPPIC_RADIUS * ppm, 4,
+                ["Α", "Β", "Γ", "Δ"], "ΚΑΛΛΙΠΠΟΣ", title_above=True)
+    _small_dial(p, ix, iy, s, lay.EXELIGMOS_RADIUS * ppm, 3,
+                EXELIGMOS_LABELS, "ΕΞΕΛΙΓΜΟΣ")
+    # Le cadran des Jeux n'a pas d'arbre modélisé : il est libre. Il était
+    # posé sur la spirale du Saros (0,67 mm de chevauchement) ; il rejoint la
+    # zone réellement vide de la plaque, côté grande roue.
+    jx, jy = at_mm(*lay.GAMES_CENTER)
+    _small_dial(p, jx, jy, s, 13.0 * ppm, 4, GAMES_GREEK, "ΑΓΩΝΕΣ")
 
 
 # ================================================================ textures

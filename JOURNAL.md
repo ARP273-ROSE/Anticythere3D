@@ -186,3 +186,66 @@ navigation éclipse, exports SVG/PDF sans bitmap.
 ### Mise à jour vérifiée de bout en bout
 Détection (0.9.0 → 1.0.0), refus d'URL étrangère, téléchargement réel du
 binaire (91 Mo, progression), remplacement avec sauvegarde .old, relance.
+
+---
+
+## 2026-07-29 — Cadran arrière : encombrement et inscriptions
+
+Deux défauts signalés en usage — « des cadrans grands et petits qui se
+superposent, et sur les cadrans à spirale il n'y a aucune indication ».
+Les deux étaient réels, et l'audit géométrique
+(`anticythere_cadrans2.sage`) en a trouvé deux autres.
+
+### 1. Cadrans qui se chevauchent — mesuré, pas estimé
+
+| Paire | distance | somme des rayons | verdict |
+|---|---|---|---|
+| callippique / exeligmos | 22,08 mm | 25,00 mm | **chevauchement 2,92 mm** |
+| Saros / Jeux | 58,58 mm | 59,25 mm | **chevauchement 0,67 mm** |
+
+Le callippique et l'exeligmos sont portés par les arbres `o` et `i`, distants
+de 22,08 mm seulement : leurs **centres sont gelés**, seul le rayon est
+libre. Ramenés à 9,9 et 9,2 mm (3 mm de jeu). Le cadran des Jeux, lui, n'a
+pas d'arbre : il est libre, et rejoint la zone réellement vide de la plaque,
+côté grande roue (`GAMES_CENTER = (-70, 0)`).
+
+Le titre du Saros a suivi : écrit au-dessus de sa spirale, il tombait dans la
+métonique — il ne reste que 7,75 mm entre les deux. Il passe dessous.
+
+### 2. La texture ne couvrait pas la plaque
+
+`BACK_DIAL_SPAN` valait 300 mm pour un boîtier de **338 × 272,5 mm** : la
+plaque était rognée de 19 mm à gauche et à droite. La constante se calcule
+maintenant à partir du boîtier.
+
+### 3. Le cadran arrière était en miroir dans la vue vectorielle
+
+Trouvé en vérifiant le rendu 2D : les spirales partaient à 139 mm de leurs
+aiguilles. `paint_back_dial` inverse les x — correct pour la texture 3D,
+qu'on regarde par derrière, faux pour la vue vectorielle qui ne retourne pas
+la scène. Le miroir devient un paramètre explicite (`mirrored`), et la vue 2D
+passe `False`. La 3D est inchangée.
+
+### 4. Les spirales n'avaient aucune inscription
+
+Elles n'avaient que leurs traits de séparation. Elles portent maintenant :
+
+* **Métonique** — le numéro d'année en chiffres grecs (Α…ΙΘ) en gras au début
+  de chacune des 19 années, trait renforcé, et les **mois corinthiens**
+  abrégés sur le tour extérieur, seul endroit où ils tiennent (une case fait
+  6,7 mm). Les 7 années embolismiques sortent du critère (12k) mod 19 < 7, et
+  la somme retombe sur 235 mois pile.
+* **Saros** — les glyphes **Η** (Ἥλιος, Soleil) et **Σ** (Σελήνη, Lune) dans
+  les cases d'éclipse. ⚠️ **Reconstitué, pas copié** : le motif est *calculé*
+  par le module `astro` — syzygie proche d'un nœud, le critère même que la
+  machine mécanise — sur les 223 mois d'un Saros. 48 cases solaires, 32
+  lunaires ; un peu plus que les glyphes gravés, les limites retenues
+  incluant des éclipses rasantes que le graveur n'a pas notées.
+
+Deux pièges de rendu au passage : la taille de police doit venir de la
+**largeur d'arc réelle** de la case (r·dθ), pas de la largeur du couloir —
+sinon le texte déborde sur les cases voisines ; et la ligne gravée passe au
+**milieu** du couloir, donc écrire au rayon exact de la spirale, c'est écrire
+sur le trait.
+
+`tests/test_gui.py` gagne une section [G6] qui verrouille les quatre points.

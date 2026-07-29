@@ -291,9 +291,12 @@ class VectorView(QtWidgets.QWidget):
         if self.face in ("back", "all"):
             painter.save()
             painter.translate(lay.CASE_CX, -lay.CASE_CY)
+            # la vue vectorielle ne retourne pas la scène : le cadran doit
+            # être dessiné dans le même sens que les roues qui l'entraînent
             dialface.paint_back_dial(painter, 0.0, 0.0, 128.0,
                                      lang=self.dial_lang,
-                                     with_background=self.face == "back")
+                                     with_background=self.face == "back",
+                                     mirrored=False)
             painter.restore()
         painter.restore()
 
