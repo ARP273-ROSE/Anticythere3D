@@ -70,6 +70,8 @@ if HAS_GL:
             self._dials: list = []
             self._angles: dict[str, float] = {}
             self._carrier = 0.0
+            self._dial_cache: dict = {}
+            self.dial_lang = "fr"
             self.build()
 
         # ------------------------------------------------------- construction
@@ -156,6 +158,39 @@ if HAS_GL:
             self._build_case(zf, zb)
             self.apply_visibility()
 
+        # ---------------------------------------------------- cadrans gravés
+        def _add_dial_texture(self, which: str, span: float, z: float,
+                              cx: float, cy: float, flip: bool = False):
+            """Pose un cadran dessiné en QPainter comme texture dans la scène."""
+            from . import dialface
+
+            key = (which, self.dial_lang)
+            data = self._dial_cache.get(key)
+            if data is None:
+                img = (dialface.render_front_dial(1600, lang=self.dial_lang)
+                       if which == "front"
+                       else dialface.render_back_dial(1600, lang=self.dial_lang))
+                data = dialface.image_to_array(img)
+                self._dial_cache[key] = data
+            if flip:
+                # La face arrière se regarde depuis l'autre côté : on voit donc
+                # le dos de la texture. Une rotation ou un facteur d'échelle
+                # négatif ne changent rien (un plan retourné reste un plan
+                # retourné) — il faut miroiter l'IMAGE elle-même.
+                data = data[:, ::-1].copy()
+            item = gl.GLImageItem(data, smooth=True)
+            n = data.shape[0]
+            m = QtGui.QMatrix4x4()
+            m.translate(cx, cy, z)
+            # GLImageItem place déjà la première ligne de l'image vers +y :
+            # ne pas inverser en y, sinon le cadran apparaît à l'envers.
+            m.scale(span / n, span / n, 1.0)
+            m.translate(-n / 2.0, -n / 2.0, 0.0)
+            item.setTransform(m)
+            self.addItem(item)
+            self._case.append(item)
+            return item
+
         # --------------------------------------------------------- boîtier
         def _build_case(self, zf: float, zb: float):
             """La machine FERMÉE : coffret de bois, plaques de bronze gravées,
@@ -178,22 +213,12 @@ if HAS_GL:
             self._case.append(self._add(
                 geo.translate(geo.plate_mesh(W, H, z_front - 3.0, 3.0),
                               cx, cy, 0.0), bronze))
-            # cadran avant : disque gravé, anneau du zodiaque et anneau
-            # calendaire de 365 jours
-            self._case.append(self._add(
-                geo.disc_mesh(122.0, z_front, 1.0, inner=3.0),
-                (0.70, 0.58, 0.28, 1.0)))
-            self._case.append(self._add(
-                geo.graduation_ring(96.0, 112.0, z_front + 1.0, 0.7, 72,
-                                    width=1.1, every=6, long_extra=7.0), dark))
-            self._case.append(self._add(
-                geo.graduation_ring(114.0, 121.0, z_front + 1.0, 0.7, 73,
-                                    width=0.8), dark))
-            # cadrans arrière : spirales gravées sur le fond
-            self._case.append(self._add(
-                geo.spiral_mesh(5, 235, 22.0, 58.0, z_back - 1.4), dark))
-            self._case.append(self._add(
-                geo.spiral_mesh(4, 223, 20.0, 52.0, z_back - 2.6), dark))
+            # cadrans gravés : de vraies textures, avec les inscriptions
+            # grecques. Un disque de bronze et quelques traits en volume ne
+            # rendraient jamais ΚΡΙΟΣ ni ΜΕΤΩΝ lisibles.
+            self._add_dial_texture("front", 250.0, z_front + 0.6, 0.0, 0.0)
+            self._add_dial_texture("back", 250.0, z_back - 0.6, cx, cy,
+                                   flip=True)
             # manivelle sur le flanc, dans l'axe de la roue a1
             ax, ay = lay.ARBORS["a"]
             self._case.append(self._add(
@@ -294,7 +319,12 @@ if HAS_GL:
             if mode == "front":
                 self.setCameraPosition(distance=330, elevation=88, azimuth=-90)
             elif mode == "back":
-                self.setCameraPosition(distance=330, elevation=-88, azimuth=-90)
+                # azimut opposé à la face avant, puis un quart de tour de
+                # roulis : sans lui, les inscriptions du dos sont couchées
+                self.setCameraPosition(distance=330, elevation=-88, azimuth=90)
+                self.opts["center"] = QtGui.QVector3D(*lay.CENTER)
+                self.roll(90.0)
+                return
             else:
                 self.setCameraPosition(distance=360, elevation=24, azimuth=-62)
             self.opts["center"] = QtGui.QVector3D(*lay.CENTER)

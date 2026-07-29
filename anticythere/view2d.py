@@ -43,6 +43,7 @@ class VectorView(QtWidgets.QWidget):
         self.setMinimumSize(480, 400)
         self.setMouseTracking(True)
         self.profile = "triangular"
+        self.dial_lang = "fr"
         self.face = "front"            # 'front' | 'back' | 'all'
         self.highlight = None
         self.show_case = True
@@ -265,31 +266,28 @@ class VectorView(QtWidgets.QWidget):
             self._draw_labels(painter, width, height, scale, for_export)
 
     def _draw_dials(self, painter: QtGui.QPainter, ink):
+        """Les cadrans gravés, en vectoriel pur.
+
+        On appelle exactement le même code que pour la texture 3D, mais
+        directement sur le painter : les inscriptions grecques restent donc
+        des courbes, nettes à tout zoom et dans les exports SVG et PDF.
+        """
+        from . import dialface
+
         painter.save()
-        painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+        # le repère de la vue a y vers le haut ; on le remet vers le bas le
+        # temps du cadran, sinon toutes les lettres seraient en miroir
+        painter.scale(1.0, -1.0)
         if self.face in ("front", "all"):
-            painter.setPen(QtGui.QPen(_qcolor(lay.COLORS["dial"]), 1.0))
-            painter.drawEllipse(QtCore.QPointF(0, 0), 112.0, 112.0)
-            painter.drawEllipse(QtCore.QPointF(0, 0), 96.0, 96.0)
-            painter.setPen(QtGui.QPen(ink, 0.5))
-            for i in range(72):
-                a = math.radians(i * 5.0)
-                r0 = 96.0 if i % 6 else 90.0
-                painter.drawLine(
-                    QtCore.QPointF(r0 * math.cos(a), r0 * math.sin(a)),
-                    QtCore.QPointF(112.0 * math.cos(a), 112.0 * math.sin(a)))
+            dialface.paint_front_dial(painter, 0.0, 0.0, 122.0,
+                                      lang=self.dial_lang)
         if self.face in ("back", "all"):
-            for turns, cells, r0, r1, key in ((5, 235, 22.0, 58.0, "metonic"),
-                                              (4, 223, 20.0, 52.0, "saros")):
-                painter.setPen(QtGui.QPen(_qcolor(lay.COLORS[key]), 0.8))
-                path = QtGui.QPainterPath()
-                n = 900
-                for i in range(n + 1):
-                    t = turns * 2.0 * math.pi * i / n
-                    r = r0 + (r1 - r0) * i / n
-                    p = QtCore.QPointF(r * math.cos(t), r * math.sin(t))
-                    path.moveTo(p) if i == 0 else path.lineTo(p)
-                painter.drawPath(path)
+            painter.save()
+            painter.translate(lay.CASE_CX, -lay.CASE_CY)
+            dialface.paint_back_dial(painter, 0.0, 0.0, 128.0,
+                                     lang=self.dial_lang,
+                                     with_background=self.face == "back")
+            painter.restore()
         painter.restore()
 
     def _draw_pointers(self, painter: QtGui.QPainter):
