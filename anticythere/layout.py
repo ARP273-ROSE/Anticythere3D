@@ -194,8 +194,23 @@ _ZOD_IN_F, _ZOD_OUT_F = 0.63, 0.825
 SUN_HAND = FRONT_DIAL_SPAN / 2.0 * _ZOD_OUT_F - 3.0          # 97,7 mm
 MOON_HAND = FRONT_DIAL_SPAN / 2.0 * (_ZOD_IN_F + _ZOD_OUT_F) / 2.0   # 88,8 mm
 
-#: côté de la texture du dos, en mm — doit couvrir tout le boîtier
-BACK_DIAL_SPAN = 300.0
+#: Côté de la texture du dos, en mm. Elle est carrée et doit couvrir tout le
+#: boîtier : à 300 mm elle était plus étroite que les 338 mm de la plaque, qui
+#: se trouvait donc rognée à gauche et à droite. On la cale sur la plus grande
+#: dimension du boîtier, plus une marge.
+BACK_DIAL_SPAN = max(CASE_WIDTH, CASE_HEIGHT) + 12.0
+
+#: rayons des deux petits cadrans arrière, en mm. Ils sont portés par les
+#: arbres o et i, distants de seulement 22,08 mm : à 13 et 12 mm ils se
+#: chevauchaient de 2,92 mm. Calcul dans `anticythere_cadrans2.sage`, 3 mm de
+#: jeu conservés entre les deux.
+CALLIPPIC_RADIUS = 9.9
+EXELIGMOS_RADIUS = 9.2
+
+#: Le cadran des Jeux n'est porté par aucun arbre modélisé : sa position est
+#: libre. Il était posé sur la spirale du Saros ; il rejoint la zone vraiment
+#: vide de la plaque, du côté de la grande roue b1.
+GAMES_CENTER = (-70.0, 0.0)
 
 #: anneaux du Cosmos de la face avant (modèle Freeth 2021 : les planètes en
 #: anneaux concentriques marqués d'une petite sphère). Rayon en mm ; ils
