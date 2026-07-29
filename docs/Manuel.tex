@@ -280,6 +280,8 @@ choses :
 \newpage
 \section{Ce qu'affichent les cadrans}
 
+\subsection{Le panneau de report}
+
 Le panneau de droite se détache (c'est une fenêtre à part entière) et donne :
 
 \begin{center}
@@ -323,6 +325,66 @@ Elle se décompose ainsi :
 La suite de tests du programme vérifie que l'erreur mesurée reste sous ce
 budget : c'est une manière de prouver que le simulateur est fidèle \emph{y
 compris dans ses défauts}.
+\end{info}
+
+\subsection{Lire les gravures}
+
+Les cadrans eux-mêmes portent des inscriptions, reproduites d'après les
+fragments. Retourne la machine (bouton \textsf{Arrière}) et zoome : tout est
+gravé, en vectoriel, donc net à n'importe quel grossissement.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}llX@{}}
+\toprule
+\rowcolor{lightblue}\textbf{Cadran} & \textbf{Divisions} & \textbf{Ce qui est écrit} \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Face avant}}\\
+Zodiaque & $12 \times 30°$ & les douze signes en grec depuis le point vernal ;
+noter \emph{Ch\^elai}, «~les pinces~», là où nous disons Balance \\
+Parapegma & lettres & petites lettres-index semées dans le zodiaque, renvoyant
+à un calendrier d'étoiles gravé sur la plaque \\
+Calendrier & 365 ou 354 & les mois égyptiens en caractères grecs ; l'anneau est
+\textbf{mobile}, on le tourne d'un cran tous les quatre ans \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Face arrière}}\\
+Métonique & spirale, 235 cases & une case = un mois lunaire, avec le nom de son
+mois corinthien sur le tour extérieur ; le numéro d'année en chiffres grecs
+marque chacune des 19 années \\
+Callippique & 4 secteurs & lequel des quatre cycles de 76 ans on parcourt \\
+Jeux & 4 secteurs & \emph{Olympia}, \emph{Nemea}, \emph{Isthmia},
+\emph{Pythia} — le seul cadran non astronomique \\
+Saros & spirale, 223 cases & les cases où une éclipse est possible portent
+$\mathrm{H}$ (\^eta, pour \emph{H\^elios}, le Soleil) ou $\Sigma$ (sigma, pour
+\emph{Sel\^en\^e}, la Lune) \\
+Exeligmos & 3 secteurs & 0, 8 ou 16 heures à \textbf{ajouter} à l'heure lue
+sur le Saros \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{info}[Les sept années à treize mois]
+Dix-neuf années solaires valent 235 mois lunaires, or $19 \times 12 = 228$ :
+sept années du cycle en comptent \textbf{treize}. Elles se répartissent selon
+le critère $(12k) \bmod 19 < 7$, soit les années $2, 5, 8, 10, 13, 16, 19$ —
+et le total retombe sur 235 cases exactement. C'est pourquoi les traits de
+début d'année ne sont pas régulièrement espacés sur la spirale.
+\end{info}
+
+\begin{info}[Pourquoi 223 cases sur le Saros]
+Parce que trois périodes lunaires y coïncident à moins de cinq heures près sur
+dix-huit ans : 223 mois synodiques (même phase), 242 draconitiques (même
+n\oe ud), 239 anomalistiques (même distance). L'éclipse se répète. Il reste
+$0{,}321$ jour, qui la décale de $7{,}7$~heures — environ $116°$ de longitude,
+donc souvent invisible de chez soi. Après trois Saros, ce reste fait presque un
+jour entier : c'est ce que compte le cadran de l'exeligmos.
+
+\textbf{Réserve} : les glyphes d'éclipse sont \textbf{calculés}, pas copiés. Le
+motif de la plaque n'est connu que par fragments ; le programme applique le
+critère que la machine mécanise — syzygie proche d'un n\oe ud — sur les 223
+mois d'un Saros, et marque 48 cases solaires, 32 lunaires, dont 22 portent les
+deux. Un peu plus que les glyphes gravés, les limites retenues incluant des
+éclipses rasantes.
 \end{info}
 
 % =====================================================================

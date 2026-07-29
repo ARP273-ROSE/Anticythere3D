@@ -116,6 +116,39 @@ bug, et le programme le décompose : les termes d'évection et de variation ne
 sont pas mécanisés (2,2°), l'approximation `254/19` dérive (3,5° par 50 ans),
 et la précession de l'apogée est légèrement fausse (0,8°).
 
+## Ce qui est gravé sur chaque cadran
+
+Les cadrans ne sont pas décoratifs : chaque trait porte une information. Le
+programme grave les mêmes inscriptions que la machine, aux mêmes places.
+
+**Face avant** — le zodiaque (12 × 30°, les noms grecs depuis le point vernal,
+avec *Chêlai*, « les pinces », là où nous disons Balance), les lettres-index du
+**parapegma** qui renvoient à un calendrier d'étoiles, l'anneau calendaire
+égyptien mobile (365 ou 354 divisions, le débat n'est pas tranché), les sept
+anneaux du **Cosmos** et la bille de phase.
+
+**Face arrière** :
+
+| Cadran | Divisions | Ce qui est écrit |
+|---|---|---|
+| **Métonique** | spirale, 5 tours, **235 cases** | une case = un mois lunaire ; chacune porte le nom de son mois corinthien (*Phoinikaios*, *Kraneios*…). Le numéro d'année en chiffres grecs marque chacune des 19 années — dont les **7 années à 13 mois**, données par (12k) mod 19 < 7. |
+| **Callippique** | 4 secteurs | lequel des quatre cycles métoniques (76 ans) on parcourt, donc le jour à retrancher |
+| **Jeux** | 4 secteurs | *Olympia*, *Nemea*, *Isthmia*, *Pythia* — le seul cadran non astronomique |
+| **Saros** | spirale, 4 tours, **223 cases** | les cases où une éclipse est possible portent **Η** (*Hêlios*, Soleil) ou **Σ** (*Selênê*, Lune) |
+| **Exeligmos** | 3 secteurs | 0, 8 ou 16 heures à **ajouter** à l'heure lue sur le Saros |
+
+Pourquoi 223 ? Parce que trois périodes lunaires y coïncident à moins de cinq
+heures près sur dix-huit ans : 223 mois synodiques (même phase), 242
+draconitiques (même nœud), 239 anomalistiques (même distance). L'éclipse se
+répète. Le reste de 0,321 jour la décale de 7,7 h — soit 116° de longitude —
+et c'est l'exeligmos qui en rend compte.
+
+> ⚠️ **Les glyphes d'éclipse sont calculés, pas copiés.** Le motif de la plaque
+> originale n'est connu que par fragments. Le programme applique le critère que
+> la machine mécanise — syzygie proche d'un nœud — sur les 223 mois d'un Saros :
+> 48 cases solaires, 32 lunaires, 22 portant les deux. C'est un peu plus que les
+> glyphes gravés, les limites retenues incluant des éclipses rasantes.
+
 ## Implantation des arbres
 
 Les positions des 15 arbres ne sont pas dessinées à la main. Elles résultent
@@ -202,6 +235,37 @@ reading, per-subsystem explanations, built-in manual (F1), bilingual tooltips
 throughout, plus a second **vector rendering mode** (real tooth outlines, wheel
 to zoom, drag to pan) exporting to **SVG and A3 PDF with no bitmap inside**, and
 PNG / CSV export.
+
+## What the dials say
+
+The dials are not decoration — every mark carries a reading, and the program
+engraves the same inscriptions the machine had, in the same places.
+
+**Front**: the zodiac (12 × 30°, Greek names from the vernal point, including
+*Chêlai*, "the claws", where we say Libra), the **parapegma** index letters
+keying into a star calendar, the movable Egyptian calendar ring (365 or 354
+divisions — still debated), the seven **Cosmos** rings and the phase ball.
+
+**Back**:
+
+| Dial | Divisions | What is written |
+|---|---|---|
+| **Metonic** | spiral, 5 turns, **235 cells** | one cell = one lunar month, each named after its Corinthian month (*Phoinikaios*, *Kraneios*…). Greek numerals mark each of the 19 years — including the **7 years of 13 months**, given by (12k) mod 19 < 7. |
+| **Callippic** | 4 sectors | which of the four Metonic cycles (76 years) you are in, hence the day to drop |
+| **Games** | 4 sectors | *Olympia*, *Nemea*, *Isthmia*, *Pythia* — the only non-astronomical dial |
+| **Saros** | spiral, 4 turns, **223 cells** | cells where an eclipse is possible carry **Η** (*Hêlios*, Sun) or **Σ** (*Selênê*, Moon) |
+| **Exeligmos** | 3 sectors | 0, 8 or 16 hours to **add** to the time read on the Saros |
+
+Why 223? Because three lunar periods coincide there to within five hours over
+eighteen years: 223 synodic months (same phase), 242 draconic (same node), 239
+anomalistic (same distance). The eclipse repeats. The leftover 0.321 day shifts
+it by 7.7 h — some 116° of longitude — which is what the exeligmos accounts for.
+
+> ⚠️ **The eclipse glyphs are computed, not copied.** The original plate's
+> pattern survives only in fragments. The program applies the very criterion the
+> machine mechanises — syzygy near a node — over the 223 months of one Saros:
+> 48 solar cells, 32 lunar, 22 carrying both. Slightly more than the engraved
+> glyphs, since the adopted limits include grazing eclipses.
 
 ## Accuracy
 
