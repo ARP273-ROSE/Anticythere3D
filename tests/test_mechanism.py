@@ -219,6 +219,69 @@ def test_i18n():
     check(i18n.tr("inexistant.key", "fr").startswith("<"),
           "cle absente signalee visiblement")
 
+    # toute cle utilisee dans le code doit exister dans le dictionnaire :
+    # sans ce controle, un tr("...") oublie s'affiche tel quel a l'ecran
+    import glob
+    import re
+    used = set()
+    root = __file__.rsplit("/", 2)[0]
+    for path in glob.glob(root + "/anticythere/*.py"):
+        with open(path, encoding="utf-8") as fh:
+            used |= set(re.findall(r'tr\(\s*[\'"]([a-z0-9_.]+)[\'"]', fh.read()))
+    unknown = sorted(k for k in used if k not in i18n.T)
+    check(not unknown, f"{len(used)} cles utilisees dans le code, toutes definies",
+          str(unknown))
+
+
+def test_stl():
+    print("\n[11] Export STL")
+    from anticythere import stl_export as sx
+    from collections import Counter
+    worst = None
+    for name in ("b1", "d2", "m1", "k1", "n2"):
+        v, f = sx.printable_gear(name, 1.0, 3.0, 0.15, 3.2, "involute")
+        e = Counter()
+        for tri in f:
+            for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
+                e[(min(a, b), max(a, b))] += 1
+        opened = sum(1 for c in e.values() if c != 2)
+        if opened:
+            worst = (name, opened)
+    check(worst is None, "maillages fermes (chaque arete partagee par 2 faces)",
+          str(worst))
+    # le jeu doit reellement retirer de la matiere
+    big = sx.printable_gear("m1", 1.0, 3.0, 0.0, 3.2, "involute")[0]
+    small = sx.printable_gear("m1", 1.0, 3.0, 0.30, 3.2, "involute")[0]
+    import numpy as np
+    r_big = np.hypot(big[:, 0], big[:, 1]).max()
+    r_small = np.hypot(small[:, 0], small[:, 1]).max()
+    # un jeu de 0,30 mm doit reculer le contour de 0,15 mm de chaque cote,
+    # y compris a la pointe des dents (compensation d'onglet)
+    recul = r_big - r_small
+    check(abs(recul - 0.15) < 0.02,
+          f"jeu 0,30 mm -> recul de {recul:.3f} mm a la pointe (attendu 0,150)")
+    for prof in ("involute", "triangular"):
+        p = geo.gear_outline(20, 1.0, prof)
+        ang = np.unwrap(np.arctan2(p[:, 1], p[:, 0]))
+        back = int((np.diff(ang) < -1e-9).sum())
+        check(back == 0, f"contour {prof} monotone en angle "
+                         f"({back} retours en arriere)")
+
+
+def test_updater():
+    print("\n[12] Mise a jour")
+    from anticythere import updater
+    check(updater.parse_version("v1.2.3") == (1, 2, 3), "lecture de version")
+    check(updater.is_newer("1.2.0", "1.1.9"), "1.2.0 > 1.1.9")
+    check(not updater.is_newer("1.0.0", "1.0.0"), "meme version : pas de MAJ")
+    check(not updater.is_newer("0.9.9", "1.0.0"), "version plus ancienne")
+    assets = [{"name": "Anticythere3D-linux"}, {"name": "Anticythere3D-windows.exe"}]
+    pick = updater.pick_asset(assets)
+    check(pick is not None, f"choix du binaire pour cette plateforme : {pick}")
+    st = updater.check()
+    check(isinstance(st, dict) and "available" in st,
+          "check() renvoie toujours un etat, sans lever")
+
 
 def main() -> int:
     print("=" * 70)
@@ -226,7 +289,7 @@ def main() -> int:
     print("=" * 70)
     for fn in (test_ratios, test_carrier_and_anomalistic_month, test_pin_and_slot,
                test_dials, test_planets, test_astro, test_calibration,
-               test_geometry, test_layout, test_i18n):
+               test_geometry, test_layout, test_i18n, test_stl, test_updater):
         fn()
     print("\n" + "=" * 70)
     if FAILURES:
