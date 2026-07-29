@@ -108,3 +108,37 @@ capable d'installer tout seul tout ce dont il a besoin y compris la 3D ».
   des captures réelles. Temporaires LaTeX supprimés.
 - README refondu (auto-installation, navigation, rendu vectoriel).
 - Dépôt publié : **https://github.com/ARP273-ROSE/Anticythere3D** (privé).
+
+## 2026-07-29 (nuit) — STL, build automatique, cadrans gravés
+
+### Export STL
+Un fichier par roue, jeu d'impression et alésage appliqués, nomenclature CSV.
+Les 33 maillages sont étanches. **Trois bugs de géométrie réels**, tous
+attrapés par les tests :
+1. le jeu d'impression *ajoutait* de la matière (orientation du contour non
+   mesurée) ;
+2. le profil en développante faisait *grossir* la dent vers le sommet, et les
+   grandes roues avaient un contour auto-intersecté — le flanc partait du
+   cercle de base au lieu du creux, et le recalage angulaire ne se faisait pas
+   sur le cercle primitif ;
+3. l'offset par bissectrice ne reculait la pointe de dent que de
+   `c/2·cos(θ/2)` → compensation d'onglet ajoutée (recul mesuré : 0,152 mm
+   pour 0,150 demandé).
+
+### Build et mise à jour
+`.github/workflows/build.yml` : tests, puis PyInstaller sur Windows et Linux,
+puis publication de la Release sur tag `v*`. **Release v1.0.0 en ligne**,
+`Anticythere3D-windows.exe` (54 Mo) et `Anticythere3D-linux` (91 Mo).
+`updater.py` interroge l'API, choisit le binaire de la plateforme, télécharge
+et remplace (script différé sous Windows, où un exe en cours ne peut pas
+s'écraser lui-même).
+
+### Cadrans gravés
+`dialface.py` — un seul code de dessin sert de texture 3D **et** de rendu
+vectoriel. Face avant : douze signes en grec, mois égyptiens, lettres-index du
+parapegma, 360 divisions. Face arrière : spirale métonique (5 tours, 235
+cases), spirale du Saros (4 tours, 223 cases), cadrans des Jeux, de Callippe
+et de l'exeligmos. Palette éclaircie.
+Piège résolu : pour la face arrière, ni rotation ni échelle négative ne
+corrigent le miroir — un plan retourné reste retourné. Il faut miroiter
+l'image elle-même.
