@@ -369,9 +369,12 @@ class MainWindow(QtWidgets.QMainWindow):
             b.setToolTip(tr("ctrl.warning.direction", L))
         self.lbl_date.setText(tr("ctrl.date", L))
         self.btn_goto.setText(tr("ctrl.goto", L))
+        self.btn_goto.setToolTip(tr("ctrl.goto.tip", L))
+        self.date_edit.setToolTip(tr("ctrl.date.tip", L))
 
         self.gb_nav.setTitle(tr("nav.title", L))
         self.btn_home.setText(tr("nav.home", L))
+        self.btn_home.setToolTip(tr("nav.home.tip", L))
         self.btn_zoom_in.setToolTip(tr("nav.zoom.in", L))
         self.btn_zoom_out.setToolTip(tr("nav.zoom.out", L))
         for b, key in ((self.btn_up, "nav.up"), (self.btn_down, "nav.down"),
@@ -386,6 +389,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chk_case.setText(tr("view.case", L))
         self.chk_case.setToolTip(tr("view.case.tip", L))
         self.chk_plates.setText(tr("view.plates", L))
+        self.chk_plates.setToolTip(tr("view.plates.tip", L))
         self.chk_labels.setText(tr("view.labels", L))
         self.chk_labels.setToolTip(tr("view.labels.tip", L))
         self.lbl_explode.setText(tr("view.explode", L))
@@ -404,6 +408,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cmb_profile.blockSignals(False)
 
         self.lbl_highlight.setText(tr("view.highlight", L))
+        self.cmb_highlight.setToolTip(tr("view.highlight.tip", L))
         self.cmb_highlight.blockSignals(True)
         cur = self.cmb_highlight.currentIndex()
         self.cmb_highlight.clear()
@@ -414,6 +419,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cmb_highlight.blockSignals(False)
 
         self.lbl_expl.setText(tr("expl.select", L))
+        self.cmb_expl.setToolTip(tr("expl.select.tip", L))
         self.cmb_expl.blockSignals(True)
         cur = self.cmb_expl.currentIndex()
         self.cmb_expl.clear()
@@ -458,6 +464,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def set_language(self, code: str):
         self.lang = code
+        # les cadrans gravés portent les noms des signes dans la langue de
+        # l'interface : il faut régénérer leurs textures, sinon ils restent
+        # dans la langue de départ
+        for v in (self.view3d, self.view_vec):
+            v.dial_lang = code
+        if hasattr(self.view3d, "build"):
+            self.view3d.build()
+            self.refresh()
+        self.view_vec.update()
         self.retranslate()
 
     # ------------------------------------------------------------- commandes
@@ -913,25 +928,33 @@ class MainWindow(QtWidgets.QMainWindow):
             self.status.showMessage(tr("msg.saved", self.lang, path=path))
 
     def _export_stl(self):
-        """Sort les 33 roues en STL, prêtes à trancher."""
-        from .stl_export import export_all, summary
-
+        """Sort les 33 roues en STL — dans un fil séparé : sur une machine
+        lente, la seconde de calcul gèlerait l'interface."""
         d = QtWidgets.QFileDialog.getExistingDirectory(
             self, tr("menu.file.stl", self.lang))
         if not d:
             return
         profile = "triangular" if self.cmb_profile.currentIndex() == 0 \
             else "involute"
-        QtWidgets.QApplication.setOverrideCursor(
-            QtCore.Qt.CursorShape.WaitCursor)
-        try:
-            rows = export_all(d, profile=profile)
-        finally:
-            QtWidgets.QApplication.restoreOverrideCursor()
-        QtWidgets.QMessageBox.information(
-            self, tr("menu.file.stl", self.lang),
-            summary(rows) + "\n\n" + tr("stl.note", self.lang))
-        self.status.showMessage(tr("msg.saved", self.lang, path=d))
+
+        self._stl_thread = QtCore.QThread(self)
+        self._stl_worker = _StlExporter(d, profile)
+        self._stl_worker.moveToThread(self._stl_thread)
+        self._stl_thread.started.connect(self._stl_worker.run)
+        self._stl_worker.done.connect(self._stl_done)
+        self._stl_worker.done.connect(self._stl_thread.quit)
+        self.status.showMessage(tr("stl.working", self.lang))
+        self._stl_thread.start()
+
+    def _stl_done(self, ok: bool, message: str, path: str):
+        if ok:
+            QtWidgets.QMessageBox.information(
+                self, tr("menu.file.stl", self.lang),
+                message + "\n\n" + tr("stl.note", self.lang))
+            self.status.showMessage(tr("msg.saved", self.lang, path=path))
+        else:
+            QtWidgets.QMessageBox.warning(
+                self, tr("menu.file.stl", self.lang), message)
 
     def _export_csv(self):
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
@@ -945,6 +968,25 @@ class MainWindow(QtWidgets.QMainWindow):
                 wr.writerow([self.table.item(r, 0).text(),
                              self.table.item(r, 1).text()])
         self.status.showMessage(tr("msg.saved", self.lang, path=path))
+
+
+class _StlExporter(QtCore.QObject):
+    """Export STL dans un fil séparé — l'interface ne gèle pas."""
+
+    done = QtCore.pyqtSignal(bool, str, str)
+
+    def __init__(self, outdir: str, profile: str):
+        super().__init__()
+        self._outdir = outdir
+        self._profile = profile
+
+    def run(self):
+        from .stl_export import export_all, summary
+        try:
+            rows = export_all(self._outdir, profile=self._profile)
+            self.done.emit(True, summary(rows), self._outdir)
+        except Exception as exc:                     # disque plein, droits…
+            self.done.emit(False, str(exc), self._outdir)
 
 
 class _UpdateChecker(QtCore.QObject):

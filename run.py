@@ -18,7 +18,7 @@ import os
 import sys
 
 # --- auto-installation AVANT tout import de PyQt6 --------------------------
-sys.path.insert(0, __file__.rsplit("/", 1)[0].rsplit("\\", 1)[0] or ".")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) or ".")
 from anticythere import bootstrap                                # noqa: E402
 
 

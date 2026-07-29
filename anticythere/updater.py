@@ -135,9 +135,28 @@ def running_as_frozen() -> bool:
     return getattr(sys, "frozen", False)
 
 
+#: seules ces origines sont acceptées pour un binaire de mise à jour :
+#: la page de releases du dépôt, et le CDN officiel des assets GitHub
+TRUSTED_PREFIXES = (
+    f"https://github.com/{REPO}/releases/download/",
+    "https://objects.githubusercontent.com/",
+    "https://release-assets.githubusercontent.com/",
+)
+
+
+def is_trusted_url(url: str) -> bool:
+    return isinstance(url, str) and url.startswith(TRUSTED_PREFIXES)
+
+
 def download(url: str, dest_dir: str | None = None,
              progress=None, timeout: int = 120) -> str:
-    """Télécharge dans un fichier temporaire et renvoie son chemin."""
+    """Télécharge dans un fichier temporaire et renvoie son chemin.
+
+    Refuse toute URL hors des origines de confiance : le binaire téléchargé
+    sera exécuté, il ne doit pouvoir venir que des releases de CE dépôt.
+    """
+    if not is_trusted_url(url):
+        raise ValueError(f"URL de mise à jour refusée : {url!r}")
     dest_dir = dest_dir or tempfile.mkdtemp(prefix="anticythere-update-")
     name = os.path.basename(url.split("?")[0]) or "update.bin"
     path = os.path.join(dest_dir, name)
