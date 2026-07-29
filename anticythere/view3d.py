@@ -172,31 +172,16 @@ if HAS_GL:
             if data is None:
                 img = (dialface.render_front_dial(1600, lang=self.dial_lang)
                        if which == "front"
-                       else dialface.render_back_dial(1600, lang=self.dial_lang,
-                                                      mirror=False))
+                       else dialface.render_back_dial(1600, lang=self.dial_lang))
                 data = dialface.image_to_array(img)
                 self._dial_cache[key] = data
-            # GLImageItem interprète data[i, j] comme le point (i, j) : la
-            # première dimension part donc sur X, pas sur Y. Sans cette
-            # transposition l'image est couchée — et compenser par un roulis
-            # de caméra désynchronise les aiguilles, qui, elles, sont placées
-            # dans le repère de la scène.
-            import numpy as _np
-            data = _np.ascontiguousarray(data.transpose(1, 0, 2))
-            if flip:
-                # face regardée par derrière : miroir sur la dimension qui
-                # porte l'axe X de la scène (la première, après transposition)
-                data = _np.ascontiguousarray(data[::-1])
-            # (le miroir de la face arrière est appliqué au dessin lui-même,
-            # cf. dialface.render_back_dial(mirror=True))
-            item = gl.GLImageItem(data, smooth=True)
-            n = data.shape[0]
+            # Quad à UV explicites (texquad) et non GLImageItem : celui-ci
+            # transpose l'image en interne, ce qui rendait l'orientation
+            # intraitable — c'est lui qui laissait le dos en miroir.
+            from .texquad import TexturedQuadItem
+            item = TexturedQuadItem(data, span, span, mirror_x=flip)
             m = QtGui.QMatrix4x4()
             m.translate(cx, cy, z)
-            # GLImageItem place déjà la première ligne de l'image vers +y :
-            # ne pas inverser en y, sinon le cadran apparaît à l'envers.
-            m.scale(span / n, span / n, 1.0)
-            m.translate(-n / 2.0, -n / 2.0, 0.0)
             item.setTransform(m)
             self.addItem(item)
             self._case.append(item)

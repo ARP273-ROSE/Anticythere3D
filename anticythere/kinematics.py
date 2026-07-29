@@ -261,8 +261,12 @@ class Mechanism:
         sar_cell = int(sar_frac / 4.0 * 223.0) + 1
 
         exe = self.raw("exeligmos")
-        exe_sector = int((exe % 1.0) * 3.0) + 1
-        exe_hours = (exe_sector - 1) * 8
+        # epsilon : après exactement 1 Saros, exe vaut 1/3, mais en flottant
+        # (1/3 % 1)*3 = 0,999…, et int() rendrait le secteur précédent — le
+        # cadran dirait « +0 h » au moment précis où il faut lire « +8 h ».
+        # 1e-9 tour d'exeligmos = 1,7 s : sans effet ailleurs.
+        exe_sector = int((exe % 1.0) * 3.0 + 1e-9) + 1
+        exe_hours = ((exe_sector - 1) % 3) * 8
 
         games_year = int(t % 4.0) + 1
 

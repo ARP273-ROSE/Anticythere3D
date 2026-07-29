@@ -186,13 +186,12 @@ _METONIC_FY, _SAROS_FY = 0.30, 0.72
 #: rayons extérieurs des deux spirales, en fraction du côté
 _METONIC_FR, _SAROS_FR = 0.20, 0.185
 
-# Position dans la scène d'un point de la texture, à la fraction (fx, fy) :
-#     Y = cy + span * (fy - 1/2)
-# Chaîne vérifiée en calcul formel (anticythere_texture.sage) : transposition
-# du tableau, miroir de la face arrière, puis la matrice de l'item. Le signe
-# ci-dessous avait été posé à l'envers, ce qui plaçait chaque aiguille au
-# centre de l'AUTRE spirale, à 5 mm près.
-METONIC_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (_METONIC_FY - 0.5))
-SAROS_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (_SAROS_FY - 0.5))
+# Position dans la scène d'un point de la texture, à la fraction (fx, fy).
+# Pipeline TexturedQuadItem (convention écran : ligne 0 de l'image en haut) :
+#     Y = cy + span * (1/2 - fy)
+# Vérifié en calcul formel — anticythere_texture.sage, section « MISE À JOUR ».
+# (L'ancien pipeline GLImageItem avait la formule opposée : à ne pas remettre.)
+METONIC_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (0.5 - _METONIC_FY))
+SAROS_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (0.5 - _SAROS_FY))
 METONIC_RADIUS = BACK_DIAL_SPAN * _METONIC_FR
 SAROS_RADIUS = BACK_DIAL_SPAN * _SAROS_FR

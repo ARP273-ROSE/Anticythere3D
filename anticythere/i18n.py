@@ -94,6 +94,8 @@ T: dict[str, dict[str, str]] = {
               "d'impression et l'alésage déjà appliqués, plus une nomenclature.",
         "en": "Writes one STL per gear, ready to slice, with printing clearance\n"
               "and bore already applied, plus a bill of materials."},
+    "stl.working": {"fr": "Export des roues en cours…",
+                    "en": "Exporting gears…"},
     "stl.note": {
         "fr": "Jeu de 0,15 mm retiré aux dents, alésage 3,2 mm (axe acier de "
               "3 mm).\nLes roues à bras sont des maillages composites : les "
@@ -153,6 +155,30 @@ T: dict[str, dict[str, str]] = {
         "en": "Returns the mechanism to its calibration date."},
     "ctrl.date": {"fr": "Date affichée", "en": "Displayed date"},
     "ctrl.goto": {"fr": "Aller à cette date", "en": "Go to this date"},
+    "ctrl.goto.tip": {
+        "fr": "Amène la machine à la date choisie ci-dessus : la manivelle\n"
+              "tourne d'un coup du nombre d'années nécessaire.",
+        "en": "Takes the mechanism to the date above: the crank turns the\n"
+              "required number of years at once."},
+    "ctrl.date.tip": {
+        "fr": "Date grégorienne correspondant à la position de la manivelle.",
+        "en": "Gregorian date matching the crank position."},
+    "nav.home.tip": {
+        "fr": "Remet la caméra dans sa position de départ (touche R).",
+        "en": "Returns the camera to its starting position (R key)."},
+    "view.plates.tip": {
+        "fr": "Les deux plaques intérieures qui portent les arbres.",
+        "en": "The two inner plates that carry the arbors."},
+    "view.highlight.tip": {
+        "fr": "Éteint tout sauf le sous-ensemble choisi — le plus simple\n"
+              "pour suivre un train d'engrenages des yeux.",
+        "en": "Dims everything but the chosen subsystem — the easiest way\n"
+              "to follow one gear train."},
+    "expl.select.tip": {
+        "fr": "Affiche l'explication détaillée du sous-ensemble choisi :\n"
+              "dentures, rapports exacts, et pourquoi ils sont ce qu'ils sont.",
+        "en": "Shows the detailed explanation of the chosen subsystem:\n"
+              "tooth counts, exact ratios, and why they are what they are."},
     "ctrl.warning.direction": {
         "fr": "Sur la vraie machine, on ne tourne que dans un sens :\n"
               "reculer ferait rattraper le jeu de 30 roues en série.",
