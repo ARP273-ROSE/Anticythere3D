@@ -3,10 +3,18 @@ rem =====================================================================
 rem  Anticythere3D - lancement sous Windows depuis les sources
 rem  Cree un environnement isole la premiere fois, installe ce qu'il faut,
 rem  puis demarre le simulateur. Double-cliquer suffit.
+rem
+rem  NOTE : l'environnement virtuel est cree en LOCAL (%LOCALAPPDATA%) et
+rem  jamais dans le dossier du projet. Quand les sources vivent sur un
+rem  partage reseau (W: = NAS), Windows refuse d'executer un python.exe
+rem  situe sur le partage -> venv local obligatoire.
 rem =====================================================================
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 title Anticythere3D
+
+set "VENV=%LOCALAPPDATA%\Anticythere3D\venv"
+set "VPY=%VENV%\Scripts\python.exe"
 
 echo.
 echo   Machine d'Anticythere - simulateur 3D
@@ -38,18 +46,19 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem --- 3. environnement isole --------------------------------------------
-if not exist ".venv\Scripts\python.exe" (
+rem --- 3. environnement isole (local, hors du projet) ---------------------
+if not exist "%VPY%" (
     echo   Premiere utilisation : creation de l'environnement...
-    %PY% -m venv .venv
+    echo   ^(dans %VENV%^)
+    %PY% -m venv "%VENV%"
     if errorlevel 1 (
         echo   [X] Echec de la creation de l'environnement.
         pause
         exit /b 1
     )
     echo   Installation des dependances ^(PyQt6, numpy, pyqtgraph, OpenGL^)...
-    ".venv\Scripts\python.exe" -m pip install --upgrade pip --quiet
-    ".venv\Scripts\python.exe" -m pip install -r requirements.txt --quiet
+    "%VPY%" -m pip install --upgrade pip --quiet
+    "%VPY%" -m pip install -r requirements.txt --quiet
     if errorlevel 1 (
         echo   [X] Echec de l'installation des dependances.
         pause
@@ -61,7 +70,7 @@ if not exist ".venv\Scripts\python.exe" (
 
 rem --- 4. lancement ------------------------------------------------------
 echo   Demarrage...
-".venv\Scripts\python.exe" run.py %*
+"%VPY%" run.py %*
 set "CODE=%ERRORLEVEL%"
 
 if not "%CODE%"=="0" (
