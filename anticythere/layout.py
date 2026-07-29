@@ -25,24 +25,28 @@ GEAR_THICKNESS = 2.6         # mm
 LEVEL_PITCH = 3.4            # mm entre deux étages (roue + jeu)
 ARBOR_RADIUS = 2.0           # mm
 
-#: position (x, y) de chaque arbre, en mm — résultat de l'optimisation
+#: position (x, y) de chaque arbre, en mm — résultat de l'optimisation, AVEC
+#: la contrainte mécanique des cadrans : l'aiguille métonique est portée par
+#: l'arbre n et celle du Saros par g, donc n et g sont GELÉS aux centres des
+#: deux spirales (80, ±52), alignés verticalement comme sur l'original.
+#: Entraxes exacts à 0,4 µm, aucune collision (implantation7.out).
 ARBORS = {
-    "K": (48.170, -8.712),      # second axe du tenon-fente (décalé de eps)
+    "K": (8.795, -30.198),      # second axe du tenon-fente (décalé de eps)
     "a": (135.500, 0.000),      # manivelle
     "b": (0.000, 0.000),        # grande roue motrice
-    "c": (50.116, -9.455),
-    "d": (82.947, -24.224),
-    "e": (3.806, -31.773),      # 6 roues, 3 vitesses -> tubes coaxiaux
-    "f": (111.192, 22.893),
-    "g": (70.371, 13.014),
-    "h": (55.649, -24.178),
-    "i": (68.257, 11.138),
-    "k": (47.133, -6.817),
-    "l": (40.978, 30.361),
-    "m": (115.270, 24.802),
-    "n": (83.558, 12.540),
-    "o": (59.384, 13.179),
-    "p": (68.277, -21.706),
+    "c": (33.423, -38.521),
+    "d": (12.022, -67.469),
+    "e": (-31.976, -1.254),     # 6 roues, 3 vitesses -> tubes coaxiaux
+    "f": (88.145, -10.797),
+    "g": (80.000, -52.000),     # PORTE L'AIGUILLE DU SAROS
+    "h": (46.569, -30.036),
+    "i": (15.326, -9.297),
+    "k": (10.007, -28.410),
+    "l": (21.528, 46.234),
+    "m": (91.220, 19.905),
+    "n": (80.000, 52.000),      # PORTE L'AIGUILLE MÉTONIQUE
+    "o": (17.938, 12.624),
+    "p": (48.444, 31.740),
 }
 
 #: étage de chaque roue. Deux roues d'un même étage sont dans le même plan
@@ -133,6 +137,12 @@ def arbor_extent(arbor: str) -> tuple[float, float]:
     return min(zs) - 3.0, max(zs) + GEAR_THICKNESS + 3.0
 
 
+#: rayons extérieurs des deux spirales du dos, en mm (définis avant
+#: l'emprise : les cadrans en font partie)
+METONIC_RADIUS = 50.0
+SAROS_RADIUS = 46.25
+
+
 def mechanism_extent(margin: float = 14.0) -> tuple[float, float, float, float]:
     """Emprise réelle du mécanisme : (x_min, x_max, y_min, y_max).
 
@@ -151,6 +161,11 @@ def mechanism_extent(margin: float = 14.0) -> tuple[float, float, float, float]:
     ax, ay = ARBORS["a"]                       # la manivelle sort du flanc
     xs += [ax + 30.0]
     ys += [ay - 20.0, ay + 20.0]
+    # les spirales des cadrans arrière, centrées sur leurs arbres n et g
+    for arbor, rad in (("n", METONIC_RADIUS), ("g", SAROS_RADIUS)):
+        x, y = ARBORS[arbor]
+        xs += [x - rad, x + rad]
+        ys += [y - rad, y + rad]
     return (min(xs) - margin, max(xs) + margin,
             min(ys) - margin, max(ys) + margin)
 
@@ -179,19 +194,24 @@ _ZOD_IN_F, _ZOD_OUT_F = 0.63, 0.825
 SUN_HAND = FRONT_DIAL_SPAN / 2.0 * _ZOD_OUT_F - 3.0          # 97,7 mm
 MOON_HAND = FRONT_DIAL_SPAN / 2.0 * (_ZOD_IN_F + _ZOD_OUT_F) / 2.0   # 88,8 mm
 
-#: côté de la texture du dos, en mm
-BACK_DIAL_SPAN = 250.0
-#: positions dans la texture, en fraction de son côté (cf. dialface)
-_METONIC_FY, _SAROS_FY = 0.30, 0.72
-#: rayons extérieurs des deux spirales, en fraction du côté
-_METONIC_FR, _SAROS_FR = 0.20, 0.185
+#: côté de la texture du dos, en mm — doit couvrir tout le boîtier
+BACK_DIAL_SPAN = 300.0
 
-# Position dans la scène d'un point de la texture, à la fraction (fx, fy).
-# Pipeline TexturedQuadItem (convention écran : ligne 0 de l'image en haut) :
-#     Y = cy + span * (1/2 - fy)
-# Vérifié en calcul formel — anticythere_texture.sage, section « MISE À JOUR ».
-# (L'ancien pipeline GLImageItem avait la formule opposée : à ne pas remettre.)
-METONIC_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (0.5 - _METONIC_FY))
-SAROS_CENTER = (CASE_CX, CASE_CY + BACK_DIAL_SPAN * (0.5 - _SAROS_FY))
-METONIC_RADIUS = BACK_DIAL_SPAN * _METONIC_FR
-SAROS_RADIUS = BACK_DIAL_SPAN * _SAROS_FR
+#: anneaux du Cosmos de la face avant (modèle Freeth 2021 : les planètes en
+#: anneaux concentriques marqués d'une petite sphère). Rayon en mm ; ils
+#: doivent rester sous l'anneau du zodiaque (r intérieur 77).
+COSMOS_RINGS = [
+    ("moon", 26.0, (0.75, 0.78, 0.84, 1.0)),
+    ("mercury", 34.0, (0.55, 0.48, 0.42, 1.0)),
+    ("venus", 42.0, (0.90, 0.83, 0.62, 1.0)),
+    ("sun", 50.0, (1.00, 0.80, 0.25, 1.0)),
+    ("mars", 58.0, (0.78, 0.32, 0.20, 1.0)),
+    ("jupiter", 65.0, (0.85, 0.76, 0.62, 1.0)),
+    ("saturn", 72.0, (0.72, 0.62, 0.38, 1.0)),
+]
+
+# Les centres des cadrans arrière SONT les arbres qui portent leurs
+# aiguilles : c'est la contrainte imposée à l'implantation. Plus aucune
+# position de cadran n'est indépendante de la mécanique.
+METONIC_CENTER = ARBORS["n"]
+SAROS_CENTER = ARBORS["g"]

@@ -76,8 +76,11 @@ def _ring_text(p: QtGui.QPainter, cx, cy, radius, angle_deg, text,
     """Écrit un texte le long d'un rayon, tourné pour suivre le cercle."""
     p.save()
     p.translate(cx, cy)
-    # dans la moitié basse, un texte radial serait tête-bêche : on le retourne
-    flipped = 90.0 < (angle_deg % 360.0) < 270.0
+    # un texte est tête-bêche quand sa ROTATION EFFECTIVE (90 - angle)
+    # dépasse ±90° — pas quand son angle polaire est dans la moitié basse :
+    # ce raccourci retournait à tort tout le quadrant haut-gauche
+    rot = (90.0 - angle_deg) % 360.0
+    flipped = 90.0 < rot < 270.0
     p.rotate(-angle_deg + 90.0 + (180.0 if flipped else 0.0))
     f = p.font()
     f.setPixelSize(max(1, int(font_px)))
@@ -189,9 +192,12 @@ def _spiral(p, cx, cy, s, turns, cells, r0, r1, label):
                                   cy - (r - w) * math.sin(a)),
                    QtCore.QPointF(cx + (r + w) * math.cos(a),
                                   cy - (r + w) * math.sin(a)))
-    f = p.font(); f.setPixelSize(max(1, int(s * 0.017))); f.setBold(True)
+    # titre AU-DESSUS de la spirale : au centre, il serait caché par le
+    # moyeu et l'aiguille
+    f = p.font(); f.setPixelSize(max(1, int(s * 0.016))); f.setBold(True)
     p.setFont(f); p.setPen(ENGRAVE)
-    p.drawText(QtCore.QRectF(cx - s * 0.2, cy - s * 0.022, s * 0.4, s * 0.044),
+    p.drawText(QtCore.QRectF(cx - s * 0.2, cy - r1 - s * 0.030,
+                             s * 0.4, s * 0.026),
                QtCore.Qt.AlignmentFlag.AlignCenter, label)
 
 
@@ -222,26 +228,52 @@ def _small_dial(p, cx, cy, s, rad, sectors, labels, title):
 def paint_back_dial(p: QtGui.QPainter, cx: float, cy: float, R: float,
                     lang: str = "fr", with_background: bool = True) -> None:
     """Spirale métonique (5 tours, 235 cases), spirale du Saros (4 tours,
-    223 cases) et les trois petits cadrans : Jeux, Callippe, exeligmos."""
+    223 cases) et les petits cadrans — chacun DESSINÉ SUR SON ARBRE.
+
+    Les positions viennent de l'implantation (layout.ARBORS) : l'aiguille
+    métonique est portée par l'arbre n, celle du Saros par g, le callippique
+    par o, l'exeligmos par i. Le cadran n'est plus un décor posé n'importe
+    où : il est l'extrémité visible du train qui l'entraîne.
+    """
+    from . import layout as lay
+
     s = R / 0.485
     x0, y0 = cx - s / 2.0, cy - s / 2.0
+    ppm = s / lay.BACK_DIAL_SPAN                   # pixels par millimètre
+
+    def at(arbor):
+        """Position texture d'un arbre. La texture est affichée en miroir
+        (on regarde le dos) : x est inversé ; y écran vers le haut, y texture
+        vers le bas : inversé aussi."""
+        ax, ay = lay.ARBORS[arbor]
+        return (cx - (ax - lay.CASE_CX) * ppm,
+                cy - (ay - lay.CASE_CY) * ppm)
 
     if with_background:
+        # le fond épouse le boîtier réel (W × H mm), pas le carré de la
+        # texture : sinon la plaque de bronze déborde du coffret
+        bw, bh = lay.CASE_WIDTH * ppm, lay.CASE_HEIGHT * ppm
         grad = QtGui.QRadialGradient(cx, cy - R * 0.2, R * 1.35)
         grad.setColorAt(0.0, QtGui.QColor(240, 220, 168))
         grad.setColorAt(1.0, BRONZE_MID)
         p.setBrush(QtGui.QBrush(grad))
         p.setPen(QtGui.QPen(ENGRAVE_SOFT, s * 0.004))
-        p.drawRect(QtCore.QRectF(x0, y0, s, s))
+        p.drawRect(QtCore.QRectF(cx - bw / 2.0, cy - bh / 2.0, bw, bh))
 
-    _spiral(p, cx, y0 + s * 0.30, s, 5, 235, s * 0.055, s * 0.20, "ΜΕΤΩΝ · 235")
-    _spiral(p, cx, y0 + s * 0.72, s, 4, 223, s * 0.050, s * 0.185, "ΣΑΡΟΣ · 223")
-    _small_dial(p, x0 + s * 0.185, y0 + s * 0.30, s, s * 0.062, 4,
+    nx, ny = at("n")
+    gx, gy = at("g")
+    _spiral(p, nx, ny, s, 5, 235, lay.METONIC_RADIUS * 0.275 * ppm,
+            lay.METONIC_RADIUS * ppm, "ΜΕΤΩΝ · 235")
+    _spiral(p, gx, gy, s, 4, 223, lay.SAROS_RADIUS * 0.27 * ppm,
+            lay.SAROS_RADIUS * ppm, "ΣΑΡΟΣ · 223")
+    ox, oy = at("o")
+    ix, iy = at("i")
+    _small_dial(p, ox, oy, s, 13.0 * ppm, 4, ["1", "2", "3", "4"], "ΚΑΛΛΙΠΠΟΣ")
+    _small_dial(p, ix, iy, s, 12.0 * ppm, 3, EXELIGMOS_LABELS, "ΕΞΕΛΙΓΜΟΣ")
+    # le cadran des Jeux n'a pas d'arbre modélisé : il reste gravé, dans le
+    # coin libre en haut à gauche de la plaque, comme un médaillon
+    _small_dial(p, cx - 95.0 * ppm, cy + 95.0 * ppm, s, 13.0 * ppm, 4,
                 GAMES_GREEK, "ΑΓΩΝΕΣ")
-    _small_dial(p, x0 + s * 0.815, y0 + s * 0.30, s, s * 0.052, 4,
-                ["1", "2", "3", "4"], "ΚΑΛΛΙΠΠΟΣ")
-    _small_dial(p, x0 + s * 0.5, y0 + s * 0.945, s, s * 0.048, 3,
-                EXELIGMOS_LABELS, "ΕΞΕΛΙΓΜΟΣ")
 
 
 # ================================================================ textures
