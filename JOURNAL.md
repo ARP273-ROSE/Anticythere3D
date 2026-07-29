@@ -56,3 +56,55 @@ vectoriel pour éviter pixels ? »
   effaçait toutes les roues situées dessous. Remplacé par une différence de
   `QPainterPath` (jante ajourée réelle), puis union des bras et du moyeu.
 - Case à cocher « Noms des roues » ajoutée (le drapeau existait sans UI).
+
+## 2026-07-29 (suite) — navigation libre, machine fermée, auto-installation
+
+Demandes de Kevin : « on doit pouvoir zoomer dézoomer et tourner le truc dans
+tous les sens », « la machine fermée complète avec ses cadrans et manettes
+fidèle et un bouton pour enlever l'enveloppe », « le programme doit être
+capable d'installer tout seul tout ce dont il a besoin y compris la 3D ».
+
+### Navigation
+- Caméra 3D en **quaternion** (`GLViewWidget(rotationMethod="quaternion")`) :
+  la rotation n'est plus bornée à ±90° d'élévation, on peut passer au-dessus
+  du pôle et retourner complètement la machine. En mode 'euler' (défaut de
+  pyqtgraph) c'était impossible.
+- Méthodes communes aux deux vues : `zoom()`, `rotate()`, `roll()`,
+  `reset_view()` — donc les mêmes boutons pilotent la 3D et le vectoriel.
+- Groupe **Navigation** dans l'UI : zoom ±, croix de rotation, roulis,
+  recentrer, rotation automatique.
+- Raccourcis : flèches, Page ↑↓, +/−, R, Espace, Maj pour un pas plus grand.
+- Vectoriel : molette = zoom, glisser = déplacer, clic droit = pivoter,
+  Ctrl+molette = pivoter, double-clic = recentrer.
+
+### Machine fermée
+- Coffret de bois (4 flancs + fond), façade de bronze pleine, cadran gravé
+  avec l'anneau du zodiaque (72 traits, 12 longs) et l'anneau calendaire de
+  365 jours, spirales métonique et Saros gravées au dos, **manivelle** coudée
+  sortant du flanc dans l'axe de a1, bille de phase lunaire.
+- Boîtier recentré sur `CASE_CX = 24` : l'emprise réelle va de x = −112 (b1)
+  à x = +160 (manivelle), le centre n'est donc pas l'arbre b.
+- `LEVEL_PITCH` ramené de 4,5 à 3,4 mm : la machine était trop épaisse pour
+  ressembler à l'original.
+- **Bug corrigé** : les aiguilles flottaient hors du coffret — leur maillage
+  était créé à une hauteur z, *puis* re-translaté à cette même hauteur par
+  `set_pointers`, donc décalé deux fois. Maillages désormais créés à plat.
+
+### Auto-installation
+- `anticythere/bootstrap.py`, sans aucune dépendance : détecte les modules
+  manquants, les installe avec pip (`--user` hors venv), rend visible le
+  site-packages utilisateur puis **relance le programme une fois** si les
+  paquets fraîchement installés ne sont pas encore importables.
+- Vérifié depuis un conteneur `python:3.12-slim` **vierge** : les quatre
+  paquets s'installent et `has_3d` passe à True dans la foulée.
+- `qt_can_start()` : teste dans un **sous-processus isolé** que Qt démarre
+  vraiment. Sous Linux, l'absence des bibliothèques xcb ne lève pas
+  d'exception — elle tue le processus. Le test évite le crash et affiche la
+  commande apt/dnf/pacman exacte. Un premier essai en `QT_QPA_PLATFORM=offscreen`
+  passait à côté du problème : offscreen n'utilise pas xcb.
+
+### Documentation et publication
+- `docs/Manuel.tex` → `docs/Manuel.pdf` : 9 pages, bilingue FR/EN, illustré
+  des captures réelles. Temporaires LaTeX supprimés.
+- README refondu (auto-installation, navigation, rendu vectoriel).
+- Dépôt publié : **https://github.com/ARP273-ROSE/Anticythere3D** (privé).
