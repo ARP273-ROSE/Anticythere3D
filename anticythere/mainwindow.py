@@ -61,14 +61,57 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.status = self.statusBar()
         self.retranslate()
-        self.resize(1500, 900)
+        self._setup_geometry()
         self.refresh()
 
+    # ------------------------------------------------------- mise en place
+    def _setup_geometry(self):
+        """Dimensionne fenêtre et panneaux pour l'écran réel.
+
+        Sans cela, sur un écran plus petit que la taille demandée, Qt comprime
+        les panneaux : les commandes se chevauchent et le contenu est tronqué
+        dès l'ouverture.
+        """
+        screen = QtWidgets.QApplication.primaryScreen()
+        avail = (screen.availableGeometry() if screen
+                 else QtCore.QRect(0, 0, 1280, 800))
+        w = min(1560, int(avail.width() * 0.94))
+        h = min(940, int(avail.height() * 0.94))
+        self.resize(w, h)
+        self.move(avail.left() + (avail.width() - w) // 2,
+                  avail.top() + max(0, (avail.height() - h) // 2))
+
+        # largeurs de départ : commandes à gauche, lectures à droite, le
+        # reste pour la machine — qui doit garder la part du lion
+        left = 340
+        right = max(360, min(430, int(w * 0.28)))
+        self.resizeDocks([self.dock_controls], [left],
+                         QtCore.Qt.Orientation.Horizontal)
+        self.resizeDocks([self.dock_readings, self.dock_expl], [right, right],
+                         QtCore.Qt.Orientation.Horizontal)
+        # les deux panneaux de droite se partagent la hauteur : le tableau des
+        # cadrans un peu plus que les explications
+        self.resizeDocks([self.dock_readings, self.dock_expl],
+                         [int(h * 0.55), int(h * 0.45)],
+                         QtCore.Qt.Orientation.Vertical)
+
     # ------------------------------------------------------------- panneaux
-    def _dock(self, area, widget, objname):
+    def _dock(self, area, widget, objname, scroll: bool = False):
+        """Ajoute un panneau. `scroll` l'enveloppe dans une zone défilante :
+        sans cela, un panneau plus haut que la fenêtre voit son contenu
+        tronqué ou écrasé au démarrage."""
         d = QtWidgets.QDockWidget(self)
         d.setObjectName(objname)
-        d.setWidget(widget)
+        if scroll:
+            area_w = QtWidgets.QScrollArea()
+            area_w.setWidgetResizable(True)
+            area_w.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+            area_w.setHorizontalScrollBarPolicy(
+                QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            area_w.setWidget(widget)
+            d.setWidget(area_w)
+        else:
+            d.setWidget(widget)
         d.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable
                       | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self.addDockWidget(area, d)
@@ -84,7 +127,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dial.setRange(0, 359)
         self.dial.setWrapping(True)
         self.dial.setNotchesVisible(True)
-        self.dial.setFixedHeight(120)
+        # un QDial doit rester carré, sinon il déborde sur ses voisins
+        self.dial.setMinimumSize(128, 128)
+        self.dial.setMaximumHeight(150)
+        self.dial.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
+                                QtWidgets.QSizePolicy.Policy.Fixed)
         self.dial.valueChanged.connect(self._crank_moved)
         gv.addWidget(self.dial)
 
@@ -220,9 +267,13 @@ class MainWindow(QtWidgets.QMainWindow):
         v.addWidget(self.gb_view)
         v.addStretch(1)
 
-        w.setMaximumWidth(330)
+        # largeur imposée au CONTENU, pas au panneau : le dock garde alors
+        # une largeur cohérente et rien n'est comprimé au démarrage
+        w.setMinimumWidth(300)
         self.dock_controls = self._dock(
-            QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, w, "controls")
+            QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, w, "controls",
+            scroll=True)
+        self.dock_controls.setMinimumWidth(320)
 
     def _build_readings(self):
         self.table = QtWidgets.QTableWidget(0, 2)
@@ -231,6 +282,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.table.setEditTriggers(
             QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        self.table.setMinimumWidth(340)
+        self.table.horizontalHeader().setSectionResizeMode(
+            0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         self.dock_readings = self._dock(
             QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.table, "readings")
 
@@ -243,7 +297,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cmb_expl.currentIndexChanged.connect(self._show_explanation)
         v.addWidget(self.cmb_expl)
         self.txt_expl = QtWidgets.QTextBrowser()
+        self.txt_expl.setMinimumHeight(180)
         v.addWidget(self.txt_expl)
+        w.setMinimumWidth(340)
         self.dock_expl = self._dock(
             QtCore.Qt.DockWidgetArea.RightDockWidgetArea, w, "explanations")
 
