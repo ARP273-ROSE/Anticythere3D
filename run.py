@@ -108,6 +108,11 @@ def main() -> int:
 
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName("Anticythere3D")
+    try:
+        from anticythere.logo import app_icon
+        app.setWindowIcon(app_icon())
+    except Exception:
+        pass                                # une icône n'est jamais critique
     win = MainWindow(lang=args.lang)
     if args.vector or not report["has_3d"]:
         win.set_render_mode("vector")

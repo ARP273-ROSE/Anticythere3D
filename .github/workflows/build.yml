@@ -55,15 +55,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
 
+      - name: Préparer le logo
+        shell: bash
+        run: |
+          python -m anticythere.logo --out docs || true
+          ls -la docs/logo.* || true
+
       - name: Construire l'exécutable
-        run: >
-          pyinstaller --onefile --windowed --clean --noconfirm
-          --name ${{ matrix.pyinstaller_name }}
-          --collect-submodules pyqtgraph
-          --collect-submodules OpenGL
-          --exclude-module tkinter
-          --exclude-module matplotlib
-          run.py
+        shell: bash
+        run: |
+          ICON=""
+          if [ -f docs/logo.ico ]; then ICON="--icon=docs/logo.ico"; fi
+          pyinstaller --onefile --windowed --clean --noconfirm \
+            --name "${{ matrix.pyinstaller_name }}" $ICON \
+            --collect-submodules pyqtgraph \
+            --collect-submodules OpenGL \
+            --exclude-module tkinter \
+            --exclude-module matplotlib \
+            run.py
+
+      - name: Vérifier que l'exécutable démarre
+        shell: bash
+        run: |
+          # contrôle de non-régression : l'exe doit répondre à --check.
+          # C'est précisément ce qui échouait en 1.0.0.
+          cd dist
+          BIN="${{ matrix.pyinstaller_name }}"
+          if [ -f "$BIN.exe" ]; then BIN="$BIN.exe"; fi
+          ./"$BIN" --check
+          echo "l'exécutable répond correctement"
 
       - name: Renommer pour la plateforme
         shell: bash
