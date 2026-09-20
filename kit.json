@@ -1,0 +1,30 @@
+{
+  "nom_technique": "anticythere3d",
+  "nom_fichier": "Anticythere3D",
+  "nom_affiche": "Machine d'Anticythere",
+  "depot_distribution": "ARP273-ROSE/Anticythere3D",
+  "point_entree": "run.py",
+  "fichier_version": "VERSION",
+  "icone": "docs\\logo.ico",
+  "appid": "{{9D1A9F30-6BD2-5B81-81BF-E9F502A94CD9}",
+  "modules": [
+    "run.py",
+    "reporting.py",
+    "updater.py"
+  ],
+  "paquets": [
+    "anticythere",
+    "docs"
+  ],
+  "assets": [
+    "VERSION",
+    "README.md"
+  ],
+  "requirements": "requirements.txt",
+  "pip": [],
+  "binaires": [],
+  "fichiers_proteges": [],
+  "verification_import": [
+    "anticythere"
+  ]
+}
