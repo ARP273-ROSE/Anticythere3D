@@ -22,6 +22,49 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) or ".")
 from anticythere import bootstrap                                # noqa: E402
 
 
+_fichier_faulthandler = None
+
+
+def _dossier_donnees():
+    """Ou vivent rapports et reglages, selon qu'on tourne installe ou non."""
+    from pathlib import Path
+    ici = Path(__file__).resolve().parent
+    if (ici.parent / "python" / "python.exe").exists():
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Anticythere3D"
+    else:
+        base = ici
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        base = Path.home()
+    return base
+
+
+def _demarrer_rapports():
+    """Remontee d'incidents : installation, plantage, crash natif, gel.
+
+    Un simulateur 3D meurt volontiers dans le pilote graphique, donc hors de
+    Python : faulthandler est le seul a en garder une trace.
+    """
+    dossier = _dossier_donnees()
+    trace_native = dossier / "_crash_natif.log"
+    try:
+        import faulthandler
+        global _fichier_faulthandler
+        _fichier_faulthandler = open(trace_native, "w", encoding="utf-8")
+        faulthandler.enable(file=_fichier_faulthandler, all_threads=True)
+    except Exception:
+        pass
+    try:
+        import reporting
+        from anticythere import __version__
+        reporting.init(dossier, application="anticythere3d", version=__version__)
+        reporting.relever_crash_natif(trace_native)
+        reporting.reprendre_file_en_fond()
+    except Exception:
+        pass
+
+
 def _crash_report(exc: BaseException) -> None:
     """Écrit l'erreur dans un fichier ET tente de l'afficher.
 
@@ -46,6 +89,11 @@ def _crash_report(exc: BaseException) -> None:
     except OSError:
         path = "(impossible d'écrire le journal)"
     sys.stderr.write(header + text)
+    try:
+        import reporting
+        reporting.signaler_plantage(text)
+    except Exception:
+        pass
     try:
         from PyQt6 import QtWidgets
         app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
@@ -73,6 +121,8 @@ def main() -> int:
     ap.add_argument("--check", action="store_true",
                     help="vérifier les dépendances puis quitter")
     args = ap.parse_args()
+
+    _demarrer_rapports()
 
     report = bootstrap.ensure(auto=not (args.no_install or args.check))
     if args.check:
@@ -117,6 +167,22 @@ def main() -> int:
     if args.vector or not report["has_3d"]:
         win.set_render_mode("vector")
     win.show()
+
+    # Vigie anti-gel : un rendu 3D qui bloque le fil graphique ne laisse
+    # sinon aucune trace — l'utilisateur tue la fenetre et ne peut rien en
+    # dire. La pile capturee nomme l'operation fautive.
+    try:
+        import reporting
+        from PyQt6.QtCore import QTimer
+        vigie = reporting.Vigie(seuil=10.0, periode=2.0)
+        vigie.demarrer()
+        minuteur = QTimer(win)
+        minuteur.timeout.connect(vigie.battre)
+        minuteur.start(2000)
+        win._vigie, win._vigie_timer = vigie, minuteur
+    except Exception:
+        pass
+
     return app.exec()
 
 
