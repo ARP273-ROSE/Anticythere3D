@@ -39,9 +39,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            artifact: Anticythere3D-windows.exe
-            pyinstaller_name: Anticythere3D
+          # Windows ne passe plus par PyInstaller : le paquet embarquant la
+          # distribution officielle de Python (voir release-windows.yml) evite
+          # les mises en quarantaine par Defender et permet une mise a jour
+          # sans avertissement SmartScreen. Linux reste ici.
           - os: ubuntu-latest
             artifact: Anticythere3D-linux
             pyinstaller_name: Anticythere3D
