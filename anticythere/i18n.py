@@ -127,6 +127,70 @@ T: dict[str, dict[str, str]] = {
               "releases page."},
     "update.failed": {"fr": "La mise à jour a échoué : {error}",
                       "en": "Update failed: {error}"},
+    "update.uptodate": {
+        "fr": "Vous utilisez déjà la dernière version ({current}) — ou GitHub "
+              "est injoignable.",
+        "en": "You already run the latest version ({current}) — or GitHub is "
+              "unreachable."},
+    "update.sources": {
+        "fr": "Le programme tourne depuis les sources : rien n'est remplacé "
+              "automatiquement. Les versions installées se mettent à jour "
+              "toutes seules ; sinon, `git pull`.",
+        "en": "The program runs from source: nothing is replaced automatically. "
+              "Installed versions update themselves; otherwise, `git pull`."},
+    "update.open_page": {"fr": "Ouvrir la page de téléchargement",
+                         "en": "Open the download page"},
+    "update.locked": {
+        "fr": "La mise à jour n'a pas pu être installée : des fichiers sont "
+              "encore utilisés.\n\nUne autre copie du programme tourne "
+              "probablement. Fermez-la (ou redémarrez l'ordinateur), puis "
+              "laissez le programme proposer à nouveau la mise à jour.\n\n"
+              "Votre version actuelle est intacte.",
+        "en": "The update could not be installed: some files are still in "
+              "use.\n\nAnother copy of the program is probably running. "
+              "Close it (or restart the computer), then let the program offer "
+              "the update again.\n\nYour current version is untouched."},
+    "update.restart": {
+        "fr": "Mise à jour installée. Le programme va redémarrer.",
+        "en": "Update installed. The program will now restart."},
+
+    # ----------------------------------------------------------- rapports
+    "menu.help.report": {"fr": "Signaler un problème…", "en": "Report a problem…"},
+    "menu.help.autoreport": {
+        "fr": "Envoyer les rapports d'incident automatiquement",
+        "en": "Send incident reports automatically"},
+    "consent.title": {"fr": "Autoriser le simulateur à signaler ses problèmes ?",
+                      "en": "Allow the simulator to report its problems?"},
+    "consent.text": {
+        "fr": "S'il plante, se fige ou refuse de démarrer, il peut l'annoncer "
+              "tout seul à celui qui le maintient. Rien d'autre n'est envoyé : "
+              "ni noms de fichiers, ni nom d'utilisateur.\n\n"
+              "Ce choix est modifiable dans le menu Aide.",
+        "en": "If it crashes, freezes or fails to start, it can tell its "
+              "maintainer by itself. Nothing else is sent: no file names, no "
+              "user name.\n\nYou can change this in the Help menu."},
+    "consent.yes": {"fr": "Autoriser", "en": "Allow"},
+    "consent.no": {"fr": "Non merci", "en": "No thanks"},
+    "report.prompt": {"fr": "Racontez ce qui s'est passé, avec vos mots.",
+                      "en": "Tell what happened, in your own words."},
+    "report.placeholder": {
+        "fr": "Exemple : en tournant la manivelle, la vue 3D s'est figée.",
+        "en": "Example: while turning the crank, the 3D view froze."},
+    "report.note": {
+        "fr": "Rien d'autre ne quitte la machine : ni noms de fichiers, ni nom "
+              "d'utilisateur.",
+        "en": "Nothing else leaves the machine: no file names, no user name."},
+    "report.send": {"fr": "Envoyer", "en": "Send"},
+    "report.empty": {"fr": "Rien n'a été envoyé : la description était vide.",
+                     "en": "Nothing was sent: the description was empty."},
+    "report.thanks": {"fr": "Merci", "en": "Thank you"},
+    "report.sent": {"fr": "Votre signalement a été transmis.",
+                    "en": "Your report has been sent."},
+    "report.local": {
+        "fr": "Le réseau n'a pas répondu : le signalement est enregistré et "
+              "partira au prochain démarrage. Une copie est posée ici :\n{path}",
+        "en": "The network did not answer: the report is saved and will be "
+              "sent at the next start. A copy is here:\n{path}"},
 
     # ---------------------------------------------------------- commandes
     "ctrl.title": {"fr": "Commandes", "en": "Controls"},

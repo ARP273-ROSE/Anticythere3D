@@ -24,6 +24,10 @@ SUBSYSTEM_KEYS = ["input", "moon", "anomaly", "metonic", "callippic",
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    # Résultat de la vérification de mise à jour, émis depuis un fil de fond
+    # (un QTimer créé dans ce fil n'aurait pas de boucle d'événements).
+    _upd_result = QtCore.pyqtSignal(object, bool)
+
     def __init__(self, lang: str = DEFAULT_LANG):
         super().__init__()
         self.lang = lang
@@ -60,6 +64,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.timer.start(33)
 
         self.status = self.statusBar()
+        self._upd_result.connect(self._update_result)
         self.retranslate()
         self._setup_geometry()
         self.refresh()
@@ -342,6 +347,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.m_help = mb.addMenu("")
         self.act_update = self.m_help.addAction(
             "", lambda: self._check_update(manual=True))
+        # Rapports d'incident : même dispositif que MusicOthèque et le
+        # simulateur Perce-Neige — signalement écrit, et envoi automatique
+        # des plantages/gels réglable ici (accord demandé au 1er lancement).
+        self.act_report = self.m_help.addAction("", self._signaler_probleme)
+        self.act_autoreport = self.m_help.addAction("")
+        self.act_autoreport.setCheckable(True)
+        try:
+            import reporting as _rep
+            self.act_autoreport.setChecked(_rep.consentement() is True)
+            self.act_autoreport.toggled.connect(
+                lambda on: _rep.definir_consentement(bool(on)))
+        except Exception:
+            self.act_autoreport.setEnabled(False)
         self.m_help.addSeparator()
         self.act_manual = self.m_help.addAction("", lambda: self._help("manual"))
         self.act_science = self.m_help.addAction("", lambda: self._help("science"))
@@ -456,6 +474,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.m_help.setTitle(tr("menu.help", L))
         self.act_update.setText(tr("menu.help.update", L))
         self.act_update.setToolTip(tr("menu.help.update.tip", L))
+        self.act_report.setText(tr("menu.help.report", L))
+        self.act_autoreport.setText(tr("menu.help.autoreport", L))
         self.act_manual.setText(tr("menu.help.manual", L))
         self.act_science.setText(tr("menu.help.science", L))
         self.act_keys.setText(tr("menu.help.shortcuts", L))
@@ -743,92 +763,202 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh()
 
     # ------------------------------------------------------ mise à jour
+    # Dispositif du kit Windows, identique à MusicOthèque et au simulateur
+    # Perce-Neige : le paquet installé embarque Python ; chaque version publie
+    # une archive ZIP que le programme déballe lui-même dans app/ avant de se
+    # relancer (pas d'exécutable téléchargé, donc pas de SmartScreen). Depuis
+    # les sources, on se contente d'ouvrir la page de téléchargement.
     def _check_update(self, manual: bool = False):
-        """Interroge GitHub sans bloquer l'interface."""
-        from . import updater
-
-        self._updater_thread = QtCore.QThread(self)
-        self._updater_worker = _UpdateChecker()
-        self._updater_worker.moveToThread(self._updater_thread)
-        self._updater_thread.started.connect(self._updater_worker.run)
-        self._updater_worker.done.connect(
-            lambda state: self._update_result(state, manual))
-        self._updater_worker.done.connect(self._updater_thread.quit)
-        self._updater_thread.start()
+        """Interroge GitHub dans un fil séparé, sans bloquer l'interface."""
+        import threading
+        from . import __version__
         if manual:
             self.status.showMessage(tr("update.checking", self.lang))
 
-    def _update_result(self, state: dict, manual: bool):
-        from . import updater
+        def _worker():
+            try:
+                import updater
+                info = updater.check(__version__)
+            except Exception:                         # ne jamais faire tomber l'app
+                info = None
+            self._upd_result.emit(info, manual)
 
+        self._upd_thread = threading.Thread(target=_worker, daemon=True,
+                                            name="anticythere-maj")
+        self._upd_thread.start()
+
+    def _update_result(self, info, manual: bool):
+        from . import __version__
         L = self.lang
-        self.status.showMessage(updater.summary(state, L))
-        if not state.get("available"):
+        if not info:
+            self.status.showMessage("")
             if manual:
                 QtWidgets.QMessageBox.information(
-                    self, tr("menu.help.update", L), updater.summary(state, L))
+                    self, tr("menu.help.update", L),
+                    tr("update.uptodate", L, current=__version__))
             return
-
+        try:
+            import updater
+            installe = bool(updater.is_packaged())
+            page = f"https://github.com/{updater.REPO}/releases/latest"
+        except Exception:
+            installe, page = False, ""
         box = QtWidgets.QMessageBox(self)
         box.setWindowTitle(tr("menu.help.update", L))
-        box.setText(tr("update.available", L, version=state["version"],
-                       current=updater.current_version()))
-        notes = (state.get("notes") or "").strip()
+        box.setText(tr("update.available", L, version=info["version"],
+                       current=__version__))
+        notes = (info.get("notes") or "").strip()
         if notes:
             box.setDetailedText(notes[:4000])
-        if state.get("url"):
-            box.setStandardButtons(
-                QtWidgets.QMessageBox.StandardButton.Yes
-                | QtWidgets.QMessageBox.StandardButton.No)
-            box.button(QtWidgets.QMessageBox.StandardButton.Yes).setText(
-                tr("update.install", L))
-            box.button(QtWidgets.QMessageBox.StandardButton.No).setText(
-                tr("update.later", L))
+        if installe:
+            oui = box.addButton(tr("update.install", L),
+                                QtWidgets.QMessageBox.ButtonRole.AcceptRole)
         else:
-            box.setInformativeText(tr("update.manual", L))
-            box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok)
-        if box.exec() != QtWidgets.QMessageBox.StandardButton.Yes:
+            box.setInformativeText(tr("update.sources", L))
+            oui = box.addButton(tr("update.open_page", L),
+                                QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("update.later", L),
+                      QtWidgets.QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is not oui:
             return
-        self._download_update(state)
+        if not installe:
+            if page:
+                QtGui.QDesktopServices.openUrl(QtCore.QUrl(page))
+            return
+        self._download_update(info)
 
-    def _download_update(self, state: dict):
-        from . import updater
-
+    def _download_update(self, info: dict):
+        """Télécharge et pose l'archive dans un fil de fond, avec dialogue de
+        progression. Le fil ne touche jamais Qt : il écrit dans un dict qu'un
+        QTimer relit à 10 Hz."""
+        import threading
+        import updater
         L = self.lang
-        dlg = QtWidgets.QProgressDialog(
-            tr("update.downloading", L), tr("ctrl.pause", L), 0, 100, self)
+        dlg = QtWidgets.QProgressDialog(tr("update.downloading", L), None,
+                                        0, 100, self)
+        dlg.setWindowTitle(tr("menu.help.update", L))
         dlg.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
-        dlg.setAutoClose(False)
-        dlg.show()
+        dlg.setCancelButton(None)
+        dlg.setMinimumDuration(0)
+        etat = {"fait": 0, "total": 0, "fini": False, "erreur": None,
+                "pose": False}
 
-        def progress(done, total):
-            if total:
-                dlg.setValue(int(100 * done / total))
-            QtWidgets.QApplication.processEvents()
+        def _progress(done, total):
+            etat["fait"], etat["total"] = done, total
 
-        try:
-            path = updater.download(state["url"], progress=progress)
-        except Exception as exc:                     # réseau, disque, droits
+        def _worker():
+            try:
+                etat["pose"] = bool(updater.download_and_apply(
+                    info, progress=_progress))
+            except Exception as exc:
+                etat["erreur"] = exc
+            finally:
+                etat["fini"] = True
+
+        threading.Thread(target=_worker, daemon=True,
+                         name="anticythere-maj-pose").start()
+        poll = QtCore.QTimer(self)
+        poll.setInterval(100)
+
+        def _tick():
+            if not etat["fini"]:
+                if etat["total"] > 0:
+                    dlg.setValue(min(99, etat["fait"] * 100 // etat["total"]))
+                return
+            poll.stop()
             dlg.close()
-            QtWidgets.QMessageBox.warning(
-                self, tr("menu.help.update", L),
-                tr("update.failed", L, error=str(exc)))
-            return
-        dlg.close()
-
-        if not updater.running_as_frozen():
+            err = etat["erreur"]
+            if err is not None:
+                texte = str(err)
+                verrouille = (isinstance(err, PermissionError)
+                              or "WinError 32" in texte
+                              or "used by another process" in texte
+                              or "utilisé par un autre processus" in texte)
+                QtWidgets.QMessageBox.warning(
+                    self, tr("menu.help.update", L),
+                    tr("update.locked", L) if verrouille
+                    else tr("update.failed", L, error=texte))
+                return
+            if not etat["pose"]:
+                QtWidgets.QMessageBox.warning(
+                    self, tr("menu.help.update", L),
+                    tr("update.failed", L, error="archive"))
+                return
             QtWidgets.QMessageBox.information(
-                self, tr("menu.help.update", L),
-                tr("update.downloaded", L, path=path))
-            return
-        if updater.apply_update(path):
-            QtWidgets.QApplication.quit()
-        else:
-            QtWidgets.QMessageBox.warning(
-                self, tr("menu.help.update", L),
-                tr("update.failed", L, error=path))
+                self, tr("menu.help.update", L), tr("update.restart", L))
+            try:
+                updater.restart()
+            finally:
+                QtWidgets.QApplication.quit()
 
-    # ----------------------------------------------------------------- aide
+        poll.timeout.connect(_tick)
+        poll.start()
+        self._upd_poll = poll
+
+    # --------------------------------------------------------- rapports
+    def _signaler_probleme(self):
+        """Signalement écrit, transmis au point de collecte avec l'état du
+        simulateur (port du dialogue de MusicOthèque). Repli : un .zip sur le
+        Bureau si le réseau manque."""
+        from . import __version__
+        L = self.lang
+        try:
+            import reporting
+        except Exception:
+            return
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle(tr("menu.help.report", L).rstrip("…"))
+        dlg.resize(560, 400)
+        form = QtWidgets.QVBoxLayout(dlg)
+        form.addWidget(QtWidgets.QLabel(tr("report.prompt", L)))
+        texte = QtWidgets.QPlainTextEdit()
+        texte.setPlaceholderText(tr("report.placeholder", L))
+        form.addWidget(texte)
+        note = QtWidgets.QLabel(tr("report.note", L))
+        note.setWordWrap(True)
+        note.setStyleSheet("color: gray;")
+        form.addWidget(note)
+        btns = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        btns.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setText(
+            tr("report.send", L))
+        form.addWidget(btns)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        description = texte.toPlainText().strip()
+        if not description:
+            QtWidgets.QMessageBox.information(
+                self, tr("menu.help.report", L).rstrip("…"), tr("report.empty", L))
+            return
+        # Un signalement écrit à la main est toujours transmis : on vient de
+        # demander qu'on le lise. L'accord ne gouverne que l'automatique.
+        accord = reporting.consentement()
+        if accord is not True:
+            reporting.definir_consentement(True)
+        try:
+            etat = {"rendu": getattr(self, "_render_mode", "?"),
+                    "jours": round(float(getattr(self.mech, "days", 0.0)), 2)}
+        except Exception:
+            etat = {}
+        rapport = reporting.envoyer("manuel", description=description,
+                                    version=__version__, **etat)
+        if accord is not True:
+            reporting.definir_consentement(bool(accord))
+        chemin = None
+        try:
+            chemin = reporting.paquet_local(rapport, None)
+        except Exception:
+            chemin = None
+        if rapport.get("transmis", True) and chemin is None:
+            msg = tr("report.sent", L)
+        else:
+            msg = tr("report.local", L, path=chemin or "-")
+        QtWidgets.QMessageBox.information(self, tr("report.thanks", L), msg)
+
     def _help(self, which: str):
         L = self.lang
         if which == "shortcuts":
@@ -989,17 +1119,3 @@ class _StlExporter(QtCore.QObject):
             self.done.emit(True, summary(rows), self._outdir)
         except Exception as exc:                     # disque plein, droits…
             self.done.emit(False, str(exc), self._outdir)
-
-
-class _UpdateChecker(QtCore.QObject):
-    """Interroge l'API GitHub dans un fil séparé — l'interface reste fluide."""
-
-    done = QtCore.pyqtSignal(dict)
-
-    def run(self):
-        from . import updater
-        try:
-            state = updater.check()
-        except Exception as exc:                      # ne jamais faire tomber l'app
-            state = {"ok": False, "available": False, "error": str(exc)}
-        self.done.emit(state)

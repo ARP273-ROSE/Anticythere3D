@@ -1,5 +1,35 @@
 # Anticythere3D — journal
 
+## 2026-09-27 — kit Windows : installeur, mise à jour et rapports d'incident (v1.2.0)
+
+Demande de Kevin : « le même système d'installation que MusicOthèque, même
+système de mise à jour et même report auto d'erreur que MusicOthèque et
+Perce-Neige ».
+
+### Livré
+- Les 5 fichiers du kit (`reporting.py`, `updater.py`, `build_package.py`,
+  `installer.iss`, `.github/workflows/release-windows.yml`) reposés à jour
+  depuis `_kit_windows` (ils dataient du 21/09 : lien permanent
+  `Anticythere3D-Setup.exe`, contrôles statiques, nettoyage à l'installation).
+- **Mise à jour** : l'ancien `anticythere/updater.py` (remplacement d'un
+  exécutable PyInstaller) est supprimé ; `mainwindow.py` utilise l'updater du
+  kit (archive ZIP déballée dans `app/`, puis redémarrage), vérification
+  silencieuse 3 s après l'ouverture quand le programme est installé, page de
+  téléchargement proposée depuis les sources.
+- **Rapports** : accord demandé au premier lancement (`run.py`), case
+  « Envoyer les rapports d'incident automatiquement » et « Signaler un
+  problème… » dans le menu Aide, verrou `Anticythere3DEnCours` pour
+  l'installeur. Plantage, crash natif et gel étaient déjà remontés.
+- CI : `build.yml` ne fait plus que les tests ; la release Windows est
+  construite par le gabarit du kit sur chaque tag `v*`. Plus d'exécutable
+  PyInstaller (Linux : `python run.py`).
+- 25 clés i18n ajoutées (FR/EN) ; test `[12]` réécrit pour l'updater du kit ;
+  suite complète au vert + test de fumée hors écran (menu, accord, signal de
+  mise à jour).
+- Historique git réécrit le même jour : deux commits du 29/07 étaient signés
+  d'une identité qui n'aurait pas dû apparaître.
+
+
 ## 2026-07-29 — création du simulateur
 
 Demande de Kevin : programme complet, GUI, vue 3D, enveloppe amovible,
