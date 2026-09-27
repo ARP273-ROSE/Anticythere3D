@@ -1,16 +1,17 @@
 name: build
 
-# Construit les exécutables et publie une Release.
-# Déclenché par un tag « v* » (ex. v1.0.1) ou à la main depuis l'onglet Actions.
+# Tests sans écran à chaque push et pull request. La distribution Windows
+# (paquet Python embarqué, installeur, archive de mise à jour) est construite
+# par le gabarit du kit, .github/workflows/release-windows.yml, déclenché par
+# un tag « v* » — comme MusicOthèque et le simulateur Perce-Neige. Il n'y a
+# plus d'exécutable PyInstaller : Defender le mettait en quarantaine.
 on:
   push:
+    branches: [master, main]
     tags: ["v*"]
-  workflow_dispatch:
   pull_request:
     branches: [master, main]
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
   tests:
@@ -25,124 +26,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Suite de tests
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: python tests/test_mechanism.py
       - name: Export STL (contrôle de non-régression)
         run: |
           python -m anticythere.stl_export --out /tmp/stl
           test -f /tmp/stl/nomenclature.csv
-
-  build:
-    name: Exécutable ${{ matrix.os }}
-    needs: tests
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Windows ne passe plus par PyInstaller : le paquet embarquant la
-          # distribution officielle de Python (voir release-windows.yml) evite
-          # les mises en quarantaine par Defender et permet une mise a jour
-          # sans avertissement SmartScreen. Linux reste ici.
-          - os: ubuntu-latest
-            artifact: Anticythere3D-linux
-            pyinstaller_name: Anticythere3D
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: {python-version: "3.12"}
-
-      - name: Bibliothèques Qt (Linux seulement)
-        if: runner.os == 'Linux'
-        run: |
-          # Sous Linux, Qt réclame ces bibliothèques système ; sous Windows et
-          # macOS les binaires PyQt6 embarquent tout.
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends \
-            libgl1 libegl1 libglib2.0-0 libdbus-1-3 libfontconfig1 \
-            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
-            libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
-            libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 xvfb
-
-      - name: Dépendances
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
-
-      - name: Préparer le logo
-        shell: bash
-        run: |
-          python -m anticythere.logo --out docs || true
-          ls -la docs/logo.* || true
-
-      - name: Construire l'exécutable
-        shell: bash
-        env:
-          # PyInstaller importe pyqtgraph.examples en analysant les
-          # sous-modules ; sans écran sur le runner, Qt tuerait le processus.
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          ICON=""
-          if [ -f docs/logo.ico ]; then ICON="--icon=docs/logo.ico"; fi
-          pyinstaller --onefile --windowed --clean --noconfirm \
-            --name "${{ matrix.pyinstaller_name }}" $ICON \
-            --collect-submodules pyqtgraph \
-            --collect-submodules OpenGL \
-            --exclude-module tkinter \
-            --exclude-module matplotlib \
-            run.py
-
-      - name: Vérifier que l'exécutable démarre
-        shell: bash
-        run: |
-          # contrôle de non-régression : l'exe doit répondre à --check.
-          # C'est précisément ce qui échouait en 1.0.0.
-          cd dist
-          BIN="${{ matrix.pyinstaller_name }}"
-          if [ -f "$BIN.exe" ]; then BIN="$BIN.exe"; fi
-          ./"$BIN" --check
-          echo "l'exécutable répond correctement"
-
-      - name: Renommer pour la plateforme
-        shell: bash
-        run: |
-          cd dist
-          if [ -f "${{ matrix.pyinstaller_name }}.exe" ]; then
-            mv "${{ matrix.pyinstaller_name }}.exe" "${{ matrix.artifact }}"
-          else
-            mv "${{ matrix.pyinstaller_name }}" "${{ matrix.artifact }}"
-            chmod +x "${{ matrix.artifact }}"
-          fi
-          ls -la
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.artifact }}
-          retention-days: 30
-
-  release:
-    name: Publier la Release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with: {path: artifacts}
-      - name: Rassembler les binaires
-        run: |
-          mkdir -p release
-          find artifacts -type f -exec cp {} release/ \;
-          ls -la release
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: release/*
-          generate_release_notes: true
-          body: |
-            Simulateur de la machine d'Anticythère.
-
-            **Windows** : télécharger `Anticythere3D-windows.exe` et double-cliquer.
-            **Linux** : `Anticythere3D-linux`, puis `chmod +x` et lancer.
-
-            La mise à jour se fait ensuite toute seule depuis le programme
-            (menu *Aide → Rechercher une mise à jour*).

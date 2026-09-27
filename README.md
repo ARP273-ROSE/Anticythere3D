@@ -25,9 +25,20 @@ Deux rendus au choix : **3D** temps réel (fond clair, antialiasing 8×) et
 
 ### Le plus simple : l'exécutable
 
-Va sur la [page des versions](https://github.com/ARP273-ROSE/Anticythere3D/releases/latest),
-télécharge `Anticythere3D-windows.exe` et double-clique. Rien à installer.
-Ensuite, le programme se met à jour tout seul : **Aide → Rechercher une mise à jour**.
+Télécharge l'installeur (lien permanent vers la dernière version) :
+**<https://github.com/ARP273-ROSE/Anticythere3D/releases/latest/download/Anticythere3D-Setup.exe>**
+et lance-le. Il s'installe dans ton profil utilisateur, sans mot de passe
+administrateur. Au premier lancement, Windows peut afficher « Windows a
+protégé votre ordinateur » (installeur non signé) : *Informations
+complémentaires* puis *Exécuter quand même*. Cet avertissement n'apparaît
+qu'une fois.
+
+Ensuite, le programme se met à jour **tout seul** : il détecte la nouvelle
+version au démarrage et propose de l'installer (ou **Aide → Rechercher une
+mise à jour**). S'il plante ou se fige, il peut le signaler de lui-même à son
+auteur, avec ton accord (demandé au premier lancement, modifiable dans le menu
+Aide) ; **Aide → Signaler un problème…** envoie un signalement écrit. Rien
+d'autre ne quitte la machine : ni noms de fichiers, ni nom d'utilisateur.
 
 ### Sous Windows, depuis les sources
 
@@ -215,6 +226,19 @@ can be removed to reveal the movement, and each subsystem is explained inside
 the application. Fully **bilingual French / English**, switchable at runtime.
 
 ## Install
+
+**Windows, the easy way**: download the installer (permanent link to the
+latest version)
+**<https://github.com/ARP273-ROSE/Anticythere3D/releases/latest/download/Anticythere3D-Setup.exe>**
+and run it. It installs in your user profile, no administrator password. On
+first launch Windows may show "Windows protected your PC" (unsigned
+installer): *More info*, then *Run anyway*. The program then updates itself
+(it detects a new version at start-up, or **Help → Check for updates**), and
+can report crashes and freezes to its author with your consent (asked once,
+changeable in the Help menu); **Help → Report a problem…** sends a written
+report. Nothing else leaves the machine: no file names, no user name.
+
+**From source**:
 
 ```bash
 python -m venv .venv

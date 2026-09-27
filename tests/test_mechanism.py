@@ -282,18 +282,19 @@ def test_stl():
 
 
 def test_updater():
-    print("\n[12] Mise a jour")
-    from anticythere import updater
-    check(updater.parse_version("v1.2.3") == (1, 2, 3), "lecture de version")
+    print("\n[12] Mise a jour (kit Windows)")
+    import updater
+    check(updater._version_tuple("v1.2.3") == (1, 2, 3), "lecture de version")
     check(updater.is_newer("1.2.0", "1.1.9"), "1.2.0 > 1.1.9")
     check(not updater.is_newer("1.0.0", "1.0.0"), "meme version : pas de MAJ")
     check(not updater.is_newer("0.9.9", "1.0.0"), "version plus ancienne")
-    assets = [{"name": "Anticythere3D-linux"}, {"name": "Anticythere3D-windows.exe"}]
-    pick = updater.pick_asset(assets)
-    check(pick is not None, f"choix du binaire pour cette plateforme : {pick}")
-    st = updater.check()
-    check(isinstance(st, dict) and "available" in st,
-          "check() renvoie toujours un etat, sans lever")
+    check(not updater.is_packaged(), "depuis les sources : pas de paquet")
+    check(updater.check("") is None, "version inconnue : aucune proposition")
+    check(updater._hote_de_confiance("https://github.com/x/y/releases/download/v1/a.zip"),
+          "GitHub est un hote de confiance")
+    check(not updater._hote_de_confiance("http://github.com/x"), "http refuse")
+    check(not updater._hote_de_confiance("https://exemple.org/a.zip"), "hote inconnu refuse")
+    check(updater.REPO == "ARP273-ROSE/Anticythere3D", f"depot de distribution : {updater.REPO}")
 
 
 def test_frozen():

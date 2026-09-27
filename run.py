@@ -65,6 +65,36 @@ def _demarrer_rapports():
         pass
 
 
+def _demander_accord_rapports(win, lang: str) -> None:
+    """Au premier lancement : demander l'accord pour l'envoi automatique des
+    rapports (plantage, gel, crash natif, preuve de vie), puis signaler
+    l'installation ou le démarrage du jour — comme MusicOthèque."""
+    try:
+        import reporting
+        from PyQt6 import QtWidgets
+        from anticythere.i18n import tr
+        premier = reporting.consentement() is None
+        if premier:
+            boite = QtWidgets.QMessageBox(win)
+            boite.setWindowTitle("Anticythere3D")
+            boite.setIcon(QtWidgets.QMessageBox.Icon.Question)
+            boite.setText(tr("consent.title", lang))
+            boite.setInformativeText(tr("consent.text", lang))
+            oui = boite.addButton(tr("consent.yes", lang),
+                                  QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+            boite.addButton(tr("consent.no", lang),
+                            QtWidgets.QMessageBox.ButtonRole.RejectRole)
+            boite.exec()
+            reporting.definir_consentement(boite.clickedButton() is oui)
+            try:
+                win.act_autoreport.setChecked(reporting.consentement() is True)
+            except Exception:
+                pass
+        reporting.signaler_demarrage(premier=premier)
+    except Exception:
+        pass
+
+
 def _crash_report(exc: BaseException) -> None:
     """Écrit l'erreur dans un fichier ET tente de l'afficher.
 
@@ -158,6 +188,16 @@ def main() -> int:
 
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName("Anticythere3D")
+    # Verrou nommé lu par l'installeur Inno (AppMutex = <nom_fichier>EnCours) :
+    # installer par-dessus une application ouverte ne remplacerait pas les
+    # fichiers en cours d'utilisation, et annoncerait pourtant « terminé ».
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            app._mutex_installeur = ctypes.windll.kernel32.CreateMutexW(
+                None, False, "Anticythere3DEnCours")
+        except Exception:
+            pass
     try:
         from anticythere.logo import app_icon
         app.setWindowIcon(app_icon())
@@ -167,6 +207,18 @@ def main() -> int:
     if args.vector or not report["has_3d"]:
         win.set_render_mode("vector")
     win.show()
+
+    # Accord pour l'envoi automatique des rapports (1er lancement), puis
+    # preuve de vie / installation ; et vérification silencieuse des mises à
+    # jour 3 s après l'ouverture, seulement pour une version installée.
+    from PyQt6.QtCore import QTimer
+    QTimer.singleShot(1200, lambda: _demander_accord_rapports(win, args.lang))
+    try:
+        import updater
+        if updater.is_packaged():
+            QTimer.singleShot(3000, lambda: win._check_update(manual=False))
+    except Exception:
+        pass
 
     # Vigie anti-gel : un rendu 3D qui bloque le fil graphique ne laisse
     # sinon aucune trace — l'utilisateur tue la fenetre et ne peut rien en
