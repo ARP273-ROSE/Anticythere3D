@@ -2,7 +2,7 @@
 #  AUDIT MATHEMATIQUE COMPLET du programme Anticythere3D
 #  Chaque section reproduit un calcul du code et le confronte a la
 #  reference exacte. Un FAIL = un bug dans le code.
-#  SageMath — NAS gypaete — 2026-07-29
+#  SageMath — 2026-07-29
 # =====================================================================
 R = RealField(60)
 FAILS = []

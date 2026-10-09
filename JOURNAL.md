@@ -1,8 +1,13 @@
 # Anticythere3D — journal
 
+## 2026-10-09 — dépôt neutre
+
+Retrait des mentions personnelles ; éditeur de l'installeur = ARP273-ROSE ;
+garde-fou `tests/test_confidentialite.py` (fichiers, PDF, PNG, binaires) exécuté par la CI.
+
 ## 2026-09-27 — kit Windows : installeur, mise à jour et rapports d'incident (v1.2.0)
 
-Demande de Kevin : « le même système d'installation que MusicOthèque, même
+Demande : « le même système d'installation que MusicOthèque, même
 système de mise à jour et même report auto d'erreur que MusicOthèque et
 Perce-Neige ».
 
@@ -32,7 +37,7 @@ Perce-Neige ».
 
 ## 2026-07-29 — création du simulateur
 
-Demande de Kevin : programme complet, GUI, vue 3D, enveloppe amovible,
+Demande : programme complet, GUI, vue 3D, enveloppe amovible,
 mécanisme qui fonctionne, explications, report des cadrans, bilingue,
 multiplateforme, README + aide + tooltips bilingues, tout vérifié sous SageMath.
 
@@ -52,10 +57,10 @@ multiplateforme, README + aide + tooltips bilingues, tout vérifié sous SageMat
 ### Environnement de test
 Conteneur Docker `anticythere-dev` (python:3.12-slim + PyQt6, pyqtgraph,
 PyOpenGL, numpy, skyfield, xvfb). Tests et captures :
-`docker exec -w /workspace/GitHub/Anticythere3D anticythere-dev \
+`docker exec -w /chemin/vers/Anticythere3D anticythere-dev \
   xvfb-run -a python tests/test_mechanism.py`
 
-### Limites assumées (à améliorer si Kevin le souhaite)
+### Limites assumées (à améliorer si besoin)
 - Les cadrans 3D sont schématiques : pas de graduations gravées, pas de
   glyphes d'éclipse dessinés (la prédiction, elle, est calculée).
 - Les planètes sont calculées et affichées en valeurs, mais pas modélisées
@@ -66,7 +71,7 @@ PyOpenGL, numpy, skyfield, xvfb). Tests et captures :
 
 ## 2026-07-29 (suite) — fond clair et rendu vectoriel
 
-Demande de Kevin : « ça peut pas être sur fond clair les engrenages et en
+Demande : « ça peut pas être sur fond clair les engrenages et en
 vectoriel pour éviter pixels ? »
 
 - **Palette claire** : fond parchemin `#F5F0E6`, couleurs des sous-ensembles
@@ -89,7 +94,7 @@ vectoriel pour éviter pixels ? »
 
 ## 2026-07-29 (suite) — navigation libre, machine fermée, auto-installation
 
-Demandes de Kevin : « on doit pouvoir zoomer dézoomer et tourner le truc dans
+Demandes : « on doit pouvoir zoomer dézoomer et tourner le truc dans
 tous les sens », « la machine fermée complète avec ses cadrans et manettes
 fidèle et un bouton pour enlever l'enveloppe », « le programme doit être
 capable d'installer tout seul tout ce dont il a besoin y compris la 3D ».
@@ -175,7 +180,7 @@ l'image elle-même.
 
 ## 2026-07-29 (audit complet)
 
-Demande de Kevin : audit complet (maths sous SageMath, perf, sécu,
+Demande : audit complet (maths sous SageMath, perf, sécu,
 anti-freeze, multiplateforme, bilinguisme), miroir du dos, et vérification
 du système de mise à jour.
 

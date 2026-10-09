@@ -2,7 +2,7 @@
 #  Placement des cadrans : geometrie complete, en millimetres.
 #  On verifie que chaque anneau, chaque spirale et chaque aiguille tombe
 #  la ou il faut, et que tout tient dans le boitier.
-#  SageMath — NAS gypaete — 2026-07-29
+#  SageMath — 2026-07-29
 # =====================================================================
 R = RealField(40)
 

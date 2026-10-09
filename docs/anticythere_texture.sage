@@ -2,7 +2,7 @@
 #  Ou tombe, dans la scene 3D, un point donne de la texture du cadran ?
 #  On refait la chaine de transformations en calcul formel, pour lever
 #  toute ambiguite de signe sur le placement des aiguilles du dos.
-#  SageMath — NAS gypaete — 2026-07-29
+#  SageMath — 2026-07-29
 # =====================================================================
 
 n = var('n')          # cote de la texture, en pixels

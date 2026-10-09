@@ -25,6 +25,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Garde-fou confidentialité (fichiers, PDF, PNG, binaires)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+          pip install pytest
+          python -m pytest -q tests/test_confidentialite.py
       - name: Suite de tests
         env:
           QT_QPA_PLATFORM: offscreen
