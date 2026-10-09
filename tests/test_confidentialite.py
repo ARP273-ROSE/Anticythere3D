@@ -25,7 +25,7 @@ MOTIFS = [
     r'(?i)orly\.tour', r'(?i)gypaete', r'(?i)alert[-_ ]?bay', r'(?i)fakarava', r'(?i)mauna ?kea',
     r'/mnt/nas\b', r'/mnt/zpool2', r'/mnt/apps_pool', r'/workspace\b', r'(?<![\w.~])/root/',
     r'/home/(?!(?:%s)\b)[A-Za-z0-9_.-]+' % HOME_GENERIQUES,
-    r'(?i)C:\\{1,2}Users\\{1,2}(?!(?:x|Public|runneradmin|username|utilisateur)\b)\w+',
+    r'(?i)C:\\{1,2}Users\\{1,2}(?!(?:x|Public|runneradmin|username|utilisateur|nom|name)\b)\w+',
     r'(?i)compi[eè]gne', r'(?i)air ?france', r'\bPNT\b', r'(?i)patagonie', r'(?i)truenas',
 ]
 MOTIFS_DEPOT = []  # motifs propres à ce dépôt
@@ -41,7 +41,8 @@ def fichiers_du_depot():
     try:
         r = subprocess.run(['git', 'ls-files', '-z'], cwd=RACINE, capture_output=True, timeout=30)
         if r.returncode == 0 and r.stdout:
-            return [RACINE / f for f in r.stdout.decode('utf-8').split('\0') if f]
+            return [RACINE / f for f in r.stdout.decode('utf-8').split('\0')
+                    if f and '__pycache__' not in f and not f.endswith('.pyc')]
     except (OSError, subprocess.SubprocessError):
         pass
     out = []
