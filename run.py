@@ -23,14 +23,40 @@ from anticythere import bootstrap                                # noqa: E402
 
 
 _fichier_faulthandler = None
+#: langue des messages émis avant l'ouverture de la fenêtre
+_LANGUE = "fr"
+
+
+def _empaquete() -> bool:
+    """Vrai dans le paquet autonome : python/ a côté de app/.
+
+    Windows : python/python.exe ; macOS et Linux : python/bin/python3. Ne
+    tester que python.exe faisait écrire les paquets macOS et Linux dans leur
+    propre dossier d'installation, que la mise à jour remplace.
+    """
+    from pathlib import Path
+    py = Path(__file__).resolve().parent.parent / "python"
+    return (py / "python.exe").exists() or (py / "bin" / "python3").exists()
 
 
 def _dossier_donnees():
-    """Ou vivent rapports et reglages, selon qu'on tourne installe ou non."""
+    """Ou vivent rapports et reglages, selon qu'on tourne installe ou non.
+
+    Installé, JAMAIS dans le dossier de l'application : la mise à jour le
+    remplace en entier. Windows : %LOCALAPPDATA%; macOS : Application
+    Support ; Linux : $XDG_DATA_HOME (~/.local/share).
+    """
     from pathlib import Path
     ici = Path(__file__).resolve().parent
-    if (ici.parent / "python" / "python.exe").exists():
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Anticythere3D"
+    if _empaquete():
+        if sys.platform == "win32":
+            racine = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+        elif sys.platform == "darwin":
+            racine = Path.home() / "Library" / "Application Support"
+        else:
+            racine = Path(os.environ.get("XDG_DATA_HOME")
+                          or Path.home() / ".local" / "share")
+        base = racine / "Anticythere3D"
     else:
         base = ici
     try:
@@ -108,16 +134,19 @@ def _crash_report(exc: BaseException) -> None:
     text = "".join(traceback.format_exception(type(exc), exc,
                                               exc.__traceback__))
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    header = f"Anticythere3D — erreur au démarrage — {stamp}\n"
+    header = f"Anticythere3D — start-up error — {stamp}\n"
     try:
-        here = os.path.dirname(os.path.abspath(sys.executable
-                                               if getattr(sys, "frozen", False)
-                                               else __file__))
-        path = os.path.join(here, "anticythere3d-erreur.log")
+        from anticythere.i18n import tr
+    except Exception:                        # pragma: no cover
+        def tr(key, lang="en", **kw):
+            return ("The program could not start.\n\n{error}\n\n"
+                    "Details saved in:\n{path}").format(**kw) if kw else key
+    try:
+        path = os.path.join(str(_dossier_donnees()), "anticythere3d-erreur.log")
         with open(path, "a", encoding="utf-8") as fh:
             fh.write(header + text + "\n")
     except OSError:
-        path = "(impossible d'écrire le journal)"
+        path = tr("crash.nolog", _LANGUE)
     sys.stderr.write(header + text)
     try:
         import reporting
@@ -129,9 +158,8 @@ def _crash_report(exc: BaseException) -> None:
         app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
         QtWidgets.QMessageBox.critical(
             None, "Anticythere3D",
-            "Le programme n'a pas pu démarrer.\n\n"
-            f"{type(exc).__name__}: {exc}\n\n"
-            f"Détails enregistrés dans :\n{path}")
+            tr("crash.text", _LANGUE, error=f"{type(exc).__name__}: {exc}",
+               path=path))
     except Exception:
         pass
 
@@ -140,8 +168,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description="Antikythera Mechanism simulator / simulateur de la "
                     "machine d'Anticythère")
-    ap.add_argument("--lang", choices=["fr", "en"], default="fr",
-                    help="interface language / langue de l'interface")
+    ap.add_argument("--lang", choices=["fr", "en"], default=None,
+                    help="interface language / langue de l'interface "
+                         "(default: the system's / par défaut : celle du "
+                         "système)")
     ap.add_argument("--samples", type=int, default=8,
                     help="antialiasing MSAA (0 = désactivé) / MSAA samples")
     ap.add_argument("--vector", action="store_true",
@@ -151,6 +181,13 @@ def main() -> int:
     ap.add_argument("--check", action="store_true",
                     help="vérifier les dépendances puis quitter")
     args = ap.parse_args()
+
+    # Langue : celle demandée, sinon celle du système (affinée par Qt plus
+    # bas, une fois chargé). Les messages de démarrage la suivent aussi.
+    global _LANGUE
+    from anticythere.i18n import detect_language
+    _LANGUE = args.lang or detect_language()
+    bootstrap.LANG = _LANGUE
 
     _demarrer_rapports()
 
@@ -203,7 +240,16 @@ def main() -> int:
         app.setWindowIcon(app_icon())
     except Exception:
         pass                                # une icône n'est jamais critique
-    win = MainWindow(lang=args.lang)
+    lang = args.lang
+    if not lang:
+        # le choix fait dans le menu Langue l'emporte ; à défaut, la langue
+        # d'affichage du système, que Qt lit correctement partout
+        from PyQt6 import QtCore
+        saved = QtCore.QSettings("Anticythere3D", "Anticythere3D").value("lang")
+        lang = saved if saved in ("fr", "en") else detect_language(
+            QtCore.QLocale.system().uiLanguages())
+    _LANGUE = lang
+    win = MainWindow(lang=lang)
     if args.vector or not report["has_3d"]:
         win.set_render_mode("vector")
     win.show()
@@ -212,7 +258,7 @@ def main() -> int:
     # preuve de vie / installation ; et vérification silencieuse des mises à
     # jour 3 s après l'ouverture, seulement pour une version installée.
     from PyQt6.QtCore import QTimer
-    QTimer.singleShot(1200, lambda: _demander_accord_rapports(win, args.lang))
+    QTimer.singleShot(1200, lambda: _demander_accord_rapports(win, win.lang))
     try:
         import updater
         if updater.is_packaged():

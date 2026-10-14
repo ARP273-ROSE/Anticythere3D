@@ -20,3 +20,9 @@ _crash_report.json
 dist/
 installer_out/
 .build_cache/
+
+# --- paquets macOS / Linux (build_unix.py, workflow release.yml) -----------
+/*.tar.gz
+/*-app-*.zip
+/*.dmg
+dmg_src/

@@ -1,5 +1,94 @@
 # Anticythere3D — journal
 
+## 2026-10-14 — manivelle à la souris, éclatement refait, palette, macOS et Linux (v1.3.0)
+
+Retours d'usage : « on ne peut pas tourner la molette graphique » ;
+« l'éclatement des étages ne marche pas : les engrenages se rentrent dedans et
+changent de position » ; « les couleurs entre les différents types
+d'engrenages ne sont pas assez distinctes ». Demandé aussi : tout bilingue,
+et les mêmes paquets macOS / Linux que MountMonitor.
+
+### Manivelle saisie à la souris
+- 3D : lancer de rayon sous la souris contre la poignée et le bras (7 mm),
+  complété d'une zone de 22 px autour de la poignée projetée ; l'angle est
+  celui de la souris autour de l'axe de a1, mesuré dans le plan de la
+  poignée (à l'écran si ce plan est vu par la tranche). Un tour de poignée =
+  48/223 de tour de b1 = 78,6 jours, en sens contraire. La manivelle 3D
+  tourne désormais avec a1 (elle était figée) et reste visible sans
+  l'enveloppe. Hors de la poignée, glisser fait toujours tourner la vue.
+- Vectoriel : la manivelle est dessinée sur a1 et se saisit de même ; le
+  repère scène → écran est partagé entre le dessin et la souris.
+- Le bouton rond suit la machine quelle que soit la commande utilisée.
+- Molette : celle de pyqtgraph lisait d'abord l'axe HORIZONTAL et ne bornait
+  rien ; zoom borné, clic droit glissé = déplacer (l'aide l'annonçait, la 3D
+  ne le faisait pas), double-clic = recentrer.
+
+### Éclatement
+- Cause : `z += explode·(étage − 8,5)·6` alors que `level_z` DÉCROÎT avec
+  l'étage. Les deux pentes s'annulaient vers 57 % (les 16 plans confondus),
+  puis l'ordre s'inversait.
+- Désormais le pas entre étages passe de 3,4 à 15,4 mm : le fond reste en
+  place, la pile s'étire le long des arbres, la façade (cadrans, Cosmos,
+  aiguilles, manivelle) avance avec l'étage 1, les flancs du coffret
+  s'étirent, les arbres s'allongent. Aucune roue ne bouge dans son plan.
+- Les bouts d'arbre dépassaient de 3 mm alors que deux étages ne sont séparés
+  que de 0,8 mm : c dans d2, n dans m1. Ramenés à 0,6 mm (croissant avec
+  l'éclatement, toujours sous le jeu).
+- Grisé en rendu vectoriel : l'éclatement est dans l'axe de visée.
+- Test [14] : positions dans le plan inchangées (33 roues × 6 valeurs × 4
+  angles du porte-satellite), ordre conservé, monotonie, aucune collision de
+  cylindres englobants entre étages, aucun arbre à travers une roue pleine.
+  Test [G10] : mêmes contrôles sur les matrices réellement affichées.
+- Reste connu, antérieur : l'arbre o, prolongé jusqu'au cadran callippique,
+  traverse i1 (étage 16) ; le test ne vérifie que la portée propre des arbres.
+
+### Palette
+- Sept teintes choisies par optimisation (`anticythere/palette.py` :
+  CIEDE2000, contraste WCAG, simulation Machado 2009) : orange (entrée), bleu
+  (Lune), rouge sang (tenon-fente), bleu-vert (métonique), kaki
+  (callippique), framboise (Saros), lilas (exeligmos).
+- Mesures : ΔE00 ≥ 27,7 entre tous en vision normale ; ≥ 19,8 (deutan) et
+  ≥ 19,3 (protan) entre trains voisins, ≥ 12,3 entre tous ; tritan ≥ 12,1 ;
+  contraste ≥ 3,0:1 sur le parchemin. Test [15].
+- Éclairage 3D maison : le shader « shaded » de pyqtgraph ne donnait que 20 %
+  de lumière aux faces tournées vers l'observateur — toutes les roues vues de
+  face sortaient presque noires, quelle que soit la palette.
+- Légende des couleurs dans le panneau de commandes, dans le rendu
+  vectoriel et ses exports, et dans le manuel intégré.
+
+### Bilinguisme
+- Démarrage dans la langue du système (Qt `uiLanguages`, sinon variables
+  d'environnement, sinon langue d'affichage Windows) ; le choix du menu est
+  retenu. Messages de démarrage (bootstrap), message de plantage, bilan STL,
+  aide (raccourcis, mathématiques, manuel) passés par `tr()`. Traductions Qt
+  chargées (qtbase_fr) : boutons standard et sélecteurs de fichiers en
+  français. 218 clés.
+- Test [10] étendu : analyse syntaxique de tous les modules à la recherche
+  d'appels Qt d'affichage recevant une chaîne littérale (témoin inclus).
+  Test [G11] : 231 textes visibles en anglais, aucun français, et
+  l'inverse.
+
+### macOS et Linux
+- `build_unix.py` (repris de MountMonitor, correction du 13/10 incluse dès
+  le départ) : CPython autonome (python-build-standalone) + `app/`, bundle
+  `.app` avec icône sous macOS, dossier + `.desktop` + `installer.sh` sans
+  sudo sous Linux. La construction vérifie que `updater.REPO` est renseigné
+  et que `updater.is_packaged()` reconnaît le paquet.
+- `updater.py` / `reporting.py` alignés sur MountMonitor : paquet reconnu
+  par `python/bin/python3`, bit d'exécution restauré après extraction,
+  mémoire macOS lue par sysctl, notes de version dans la langue de
+  l'interface.
+- `run.py` : données hors du dossier d'installation sur les trois systèmes
+  (`%LOCALAPPDATA%`, `~/Library/Application Support`, `~/.local/share`).
+- `libpython` débarrassé de ses symboles de débogage (219 Mo → paquet Linux
+  de 178 Mo).
+- Workflow `release.yml` (remplace `release-windows.yml`) : Windows, macOS
+  arm64 et x86_64, Linux x86_64 et arm64, puis une seule Release FR/EN.
+  `build.yml` lance aussi les tests d'interface sous Xvfb.
+- Paquet Linux construit et installé pour de vrai dans `anticythere-dev`
+  (`installer.sh` dans un HOME vierge) : démarre, interface en anglais avec
+  `LANG=en_US`, données dans `~/.local/share/Anticythere3D`.
+
 ## 2026-10-09 — dépôt neutre
 
 Retrait des mentions personnelles ; éditeur de l'installeur = ARP273-ROSE ;

@@ -99,6 +99,16 @@ def _refresh_import_paths() -> None:
     importlib.invalidate_caches()
 
 
+#: langue des messages de démarrage, fixée par run.py avant ensure()
+LANG = "fr"
+
+
+def _t(key: str, **kw) -> str:
+    """Traduction des messages de démarrage (i18n est du Python pur, sans Qt)."""
+    from .i18n import tr
+    return tr(key, LANG, **kw)
+
+
 def ensure(auto: bool = True, quiet: bool = False,
            relaunch: bool = True) -> dict:
     """Point d'entrée : vérifie, installe si besoin, et rend compte.
@@ -115,16 +125,15 @@ def ensure(auto: bool = True, quiet: bool = False,
     todo = missing()
     if todo and auto:
         names = ", ".join(t[0] for t in todo)
-        print(f"[Anticythere3D] Dépendances manquantes : {names}")
-        print("[Anticythere3D] Installation automatique en cours…")
+        print("[Anticythere3D] " + _t("boot.missing", names=names))
+        print("[Anticythere3D] " + _t("boot.installing"))
         if install([t[1] for t in todo], quiet=quiet):
             report["installed"] = [t[0] for t in todo]
             _refresh_import_paths()
             if missing() and relaunch and not os.environ.get(_GUARD):
                 # les paquets sont là mais pas importables dans ce processus :
                 # on redémarre proprement, une seule fois
-                print("[Anticythere3D] Redémarrage pour charger les nouveaux "
-                      "paquets…")
+                print("[Anticythere3D] " + _t("boot.restarting"))
                 os.environ[_GUARD] = "1"
                 try:
                     os.execv(sys.executable, [sys.executable] + sys.argv)
@@ -187,11 +196,9 @@ def qt_can_start(timeout: int = 60) -> bool:
 def system_hint() -> str:
     """Message d'aide quand Qt ne peut pas démarrer faute de bibliothèques."""
     if not sys.platform.startswith("linux"):
-        return ("Qt ne démarre pas. Vérifie que le pilote graphique est à jour, "
-                "ou lance le programme avec  --vector .")
+        return _t("boot.qt_other")
     return (
-        "Qt est installé mais ne peut pas démarrer : il manque des "
-        "bibliothèques système.\n"
+        _t("boot.qt_linux") + "\n"
         "  Debian / Ubuntu :  sudo apt install " + LINUX_SYSTEM_LIBS + "\n"
         "  Fedora :           sudo dnf install mesa-libGL mesa-libEGL "
         "libxkbcommon-x11 xcb-util-cursor xcb-util-wm xcb-util-image\n"
@@ -202,16 +209,15 @@ def system_hint() -> str:
 def describe(report: dict) -> str:
     lines = []
     if report["installed"]:
-        lines.append("Installé : " + ", ".join(report["installed"]))
+        lines.append(_t("boot.installed", names=", ".join(report["installed"])))
     if report["still_missing"]:
-        lines.append("Toujours absent : " + ", ".join(report["still_missing"]))
+        lines.append(_t("boot.still_missing",
+                        names=", ".join(report["still_missing"])))
     if not report["has_3d"]:
-        lines.append("La vue 3D n'est pas disponible — l'application démarre "
-                     "en rendu vectoriel, qui fait le même travail sans OpenGL.")
+        lines.append(_t("boot.no3d"))
     if not report["ok"]:
-        lines.append("Dépendances indispensables manquantes : installe-les à la "
-                     "main avec  pip install -r requirements.txt")
-    return "\n".join(lines) if lines else "Toutes les dépendances sont là."
+        lines.append(_t("boot.notok"))
+    return "\n".join(lines) if lines else _t("boot.allok")
 
 
 if __name__ == "__main__":

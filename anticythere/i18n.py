@@ -197,9 +197,11 @@ T: dict[str, dict[str, str]] = {
     "ctrl.crank": {"fr": "Manivelle", "en": "Crank"},
     "ctrl.crank.tip": {
         "fr": "Fais tourner la manivelle : c'est la seule entrée de la machine.\n"
-              "Un tour complet = une année. Tout le reste en découle.",
+              "Un tour complet de ce bouton = une année. Tout le reste en découle.\n"
+              "On peut aussi saisir la poignée à la souris, dans la vue.",
         "en": "Turn the crank: it is the mechanism's only input.\n"
-              "One full turn = one year. Everything else follows."},
+              "One full turn of this knob = one year. Everything else follows.\n"
+              "You can also grab the handle with the mouse, in the view."},
     "ctrl.play": {"fr": "Animer", "en": "Animate"},
     "ctrl.pause": {"fr": "Pause", "en": "Pause"},
     "ctrl.play.tip": {
@@ -502,15 +504,19 @@ T: dict[str, dict[str, str]] = {
         "en": "Slowly rotates the viewpoint, without touching the\n"
               "mechanism itself."},
     "nav.hint": {
-        "fr": "Souris : glisser = tourner · molette = zoomer · "
-              "clic droit = déplacer (3D) ou pivoter (vectoriel) · "
+        "fr": "Souris : saisir la poignée de la manivelle et la faire tourner "
+              "= faire avancer la machine (le curseur devient une main) · "
+              "glisser ailleurs = tourner la vue · molette = zoomer · "
+              "clic droit glissé = déplacer (3D) ou pivoter (vectoriel) · "
               "double-clic = recentrer.\n"
               "Clavier : ← ↑ → ↓ tourner · Page ↑↓ rouler · + − zoomer · "
               "R recentrer · Maj = pas plus grand.\n"
               "La rotation est libre : rien ne bloque aux pôles, on peut "
               "retourner complètement la machine.",
-        "en": "Mouse: drag = rotate · wheel = zoom · right-click = pan (3D) or "
-              "roll (vector) · double-click = reset.\n"
+        "en": "Mouse: grab the crank handle and turn it = drive the mechanism "
+              "(the cursor becomes a hand) · drag elsewhere = rotate the view · "
+              "wheel = zoom · right-drag = pan (3D) or roll (vector) · "
+              "double-click = reset.\n"
               "Keyboard: ← ↑ → ↓ rotate · Page ↑↓ roll · + − zoom · R reset · "
               "Shift = larger step.\n"
               "Rotation is unconstrained: nothing locks at the poles, the "
@@ -524,9 +530,113 @@ T: dict[str, dict[str, str]] = {
     "view.labels": {"fr": "Noms des roues", "en": "Gear labels"},
     "view.explode": {"fr": "Éclatement des étages", "en": "Level explosion"},
     "view.explode.tip": {
-        "fr": "Écarte les 16 plans d'engrènement pour voir comment ils "
-              "s'empilent.",
-        "en": "Spreads the 16 meshing planes apart to reveal how they stack."},
+        "fr": "Écarte les 16 plans d'engrènement le long des arbres, sans\n"
+              "déplacer aucune roue dans son plan : les roues qui s'engrènent\n"
+              "restent face à face, les arbres s'allongent, la façade avance.",
+        "en": "Spreads the 16 meshing planes apart along the arbors, without\n"
+              "moving any gear within its plane: meshing gears stay face to\n"
+              "face, the arbors lengthen, the front plate moves forward."},
+    "view.explode.vector": {
+        "fr": "L'éclatement se fait le long des arbres, c'est-à-dire dans l'axe\n"
+              "de visée du rendu vectoriel : passez en 3D pour le voir.",
+        "en": "The explosion happens along the arbors, i.e. along the line of\n"
+              "sight of the vector view: switch to 3D to see it."},
+    "legend.title": {"fr": "Couleurs des trains", "en": "Gear train colours"},
+    "legend.tip": {
+        "fr": "Une couleur par sous-ensemble, choisie pour rester distincte\n"
+              "même pour un daltonien (deutéranopie, protanopie).",
+        "en": "One colour per subsystem, chosen to stay distinct even with\n"
+              "colour-vision deficiency (deuteranopia, protanopia)."},
+    "keys.mouse": {"fr": "Souris", "en": "Mouse"},
+    "keys.space": {"fr": "Espace", "en": "Space"},
+    "keys.arrows": {"fr": "tourner la vue", "en": "rotate the view"},
+    "keys.pages": {"fr": "Page ↑ / Page ↓", "en": "Page Up / Page Down"},
+    "keys.roll": {"fr": "rouler autour de l'axe de visée",
+                  "en": "roll around the line of sight"},
+    "keys.zoom": {"fr": "zoomer / dézoomer", "en": "zoom in / out"},
+    "science.output": {"fr": "sortie", "en": "output"},
+    "science.ratio": {"fr": "rapport exact", "en": "exact ratio"},
+    "science.per_year": {"fr": "tours par an", "en": "turns per year"},
+    "about.version": {"fr": "Version {version}", "en": "Version {version}"},
+    "dlg.close": {"fr": "Fermer", "en": "Close"},
+    "svg.description": {"fr": "Rendu vectoriel — Anticythere3D",
+                        "en": "Vector rendering — Anticythere3D"},
+    "stl.bom": {"fr": "Nomenclature : {path}", "en": "Bill of materials: {path}"},
+    "stl.summary": {
+        "fr": "{n} roues exportées, {tri} triangles au total.\n"
+              "Plus grande : {name} ({teeth} dents), {outer} mm hors tout.\n"
+              "Plateau minimum requis : {plate} mm.",
+        "en": "{n} gears exported, {tri} triangles in total.\n"
+              "Largest: {name} ({teeth} teeth), {outer} mm overall.\n"
+              "Minimum print bed: {plate} mm."},
+    "dlg.cancel": {"fr": "Annuler", "en": "Cancel"},
+    "manual.body": {
+        "fr": "<p>La machine n'a <b>qu'une seule entrée</b> : la manivelle. "
+              "Saisis sa poignée à la souris dans la vue et fais-la tourner, "
+              "tourne le bouton rond, ou clique « Animer ». Un tour du bouton "
+              "rond vaut une année ; un tour de la manivelle, 48/223 d'année "
+              "(78,6 jours). Tous les pointeurs suivent.</p>"
+              "<p>Décoche <b>Enveloppe</b> pour retirer le boîtier et voir "
+              "les 33 roues. Le curseur <b>Éclatement des étages</b> écarte les "
+              "16 plans d'engrènement le long des arbres : aucune roue ne "
+              "bouge dans son plan, celles qui s'engrènent restent face à face. "
+              "Le menu <b>Mettre en évidence</b> éteint tout sauf un "
+              "sous-ensemble ; la légende donne la couleur de chacun.</p>"
+              "<p>Le panneau de droite donne en permanence ce que lisait le "
+              "propriétaire de la machine, et, tout en bas, l'écart entre la "
+              "machine et le ciel réel calculé par éphémérides modernes.</p>",
+        "en": "<p>The mechanism has <b>a single input</b>: the crank. Grab its "
+              "handle with the mouse in the view and turn it, turn the round "
+              "knob, or click “Animate”. One turn of the knob is one year; one "
+              "turn of the crank is 48/223 of a year (78.6 days). Every pointer "
+              "follows.</p>"
+              "<p>Untick <b>Case</b> to remove the housing and see all 33 gears. "
+              "The <b>Level explosion</b> slider spreads the 16 meshing planes "
+              "apart along the arbors: no gear moves within its plane, meshing "
+              "gears stay face to face. <b>Highlight</b> dims everything but one "
+              "subsystem; the legend gives each one's colour.</p>"
+              "<p>The right-hand panel shows what the owner of the machine would "
+              "have read, and at the bottom, the mechanism's error against modern "
+              "ephemerides.</p>"},
+    # ------------------------------------------- démarrage / start-up
+    "boot.missing": {"fr": "Dépendances manquantes : {names}",
+                     "en": "Missing dependencies: {names}"},
+    "boot.installing": {"fr": "Installation automatique en cours…",
+                        "en": "Installing automatically…"},
+    "boot.restarting": {"fr": "Redémarrage pour charger les nouveaux paquets…",
+                        "en": "Restarting to load the new packages…"},
+    "boot.installed": {"fr": "Installé : {names}", "en": "Installed: {names}"},
+    "boot.still_missing": {"fr": "Toujours absent : {names}",
+                           "en": "Still missing: {names}"},
+    "boot.no3d": {
+        "fr": "La vue 3D n'est pas disponible — l'application démarre en "
+              "rendu vectoriel, qui fait le même travail sans OpenGL.",
+        "en": "The 3D view is unavailable — the application starts in vector "
+              "mode, which does the same job without OpenGL."},
+    "boot.notok": {
+        "fr": "Dépendances indispensables manquantes : installe-les à la main "
+              "avec  pip install -r requirements.txt",
+        "en": "Required dependencies are missing: install them by hand with  "
+              "pip install -r requirements.txt"},
+    "boot.allok": {"fr": "Toutes les dépendances sont là.",
+                   "en": "All dependencies are present."},
+    "boot.qt_other": {
+        "fr": "Qt ne démarre pas. Vérifie que le pilote graphique est à jour, "
+              "ou lance le programme avec  --vector .",
+        "en": "Qt does not start. Check that the graphics driver is up to "
+              "date, or start the program with  --vector ."},
+    "boot.qt_linux": {
+        "fr": "Qt est installé mais ne peut pas démarrer : il manque des "
+              "bibliothèques système.",
+        "en": "Qt is installed but cannot start: some system libraries are "
+              "missing."},
+    "crash.text": {
+        "fr": "Le programme n'a pas pu démarrer.\n\n{error}\n\n"
+              "Détails enregistrés dans :\n{path}",
+        "en": "The program could not start.\n\n{error}\n\n"
+              "Details saved in:\n{path}"},
+    "crash.nolog": {"fr": "(impossible d'écrire le journal)",
+                    "en": "(could not write the log)"},
     "view.render": {"fr": "Rendu", "en": "Rendering"},
     "view.render.3d": {"fr": "3D (OpenGL, antialiasé)",
                        "en": "3D (OpenGL, antialiased)"},
@@ -619,6 +729,38 @@ PHASE_NAMES = {
     "en": ["New Moon", "Waxing crescent", "First quarter", "Waxing gibbous",
            "Full Moon", "Waning gibbous", "Last quarter", "Waning crescent"],
 }
+
+
+def detect_language(ui_languages=None) -> str:
+    """Langue de l'interface au premier lancement : celle du système.
+
+    `ui_languages` : la liste de Qt (QLocale.system().uiLanguages()), qui suit
+    la LANGUE D'AFFICHAGE sur les trois systèmes. Sans elle (avant que Qt ne
+    soit chargé), on lit les variables d'environnement, puis la langue
+    d'affichage de Windows — surtout pas locale.getdefaultlocale(), retiré de
+    Python 3.13 et qui renvoie sous Windows la langue des FORMATS.
+    """
+    import os
+    import sys
+    candidates = list(ui_languages or [])
+    if not candidates:
+        for var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+            val = os.environ.get(var, "")
+            if val and val not in ("C", "POSIX", "C.UTF-8"):
+                candidates += val.split(":")
+                break
+    if not candidates and sys.platform == "win32":
+        try:
+            import ctypes
+            lid = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+            candidates.append("fr" if (lid & 0x3FF) == 0x0C else "en")
+        except Exception:
+            pass
+    for c in candidates:
+        code = str(c).replace("_", "-").split("-")[0].lower()
+        if code in LANGUAGES:
+            return code
+    return "en" if candidates else DEFAULT_LANG
 
 
 def tr(key: str, lang: str = DEFAULT_LANG, **kwargs) -> str:

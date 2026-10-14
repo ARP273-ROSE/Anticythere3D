@@ -53,6 +53,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.stack.addWidget(self.view_vec)
         self.setCentralWidget(self.stack)
         self.view = self.view3d
+        # la manivelle se saisit à la souris dans les deux rendus
+        for v in (self.view3d, self.view_vec):
+            sig = getattr(v, "crank_turned", None)
+            if sig is not None:
+                sig.connect(self._crank_dragged)
 
         self._build_controls()
         self._build_readings()
@@ -65,6 +70,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.status = self.statusBar()
         self._upd_result.connect(self._update_result)
+        self._install_qt_translation(self.lang)
+        if self.lang != self.view3d.dial_lang:
+            # cadrans gravés dans la langue de départ
+            for v in (self.view3d, self.view_vec):
+                v.dial_lang = self.lang
+            if hasattr(self.view3d, "build"):
+                self.view3d.build()
         self.retranslate()
         self._setup_geometry()
         self.refresh()
@@ -205,8 +217,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.gb_nav = QtWidgets.QGroupBox()
         nv = QtWidgets.QVBoxLayout(self.gb_nav)
         zr = QtWidgets.QHBoxLayout()
-        self.btn_zoom_in = QtWidgets.QPushButton("＋")
-        self.btn_zoom_out = QtWidgets.QPushButton("－")
+        self.btn_zoom_in = QtWidgets.QPushButton("+")
+        self.btn_zoom_out = QtWidgets.QPushButton("−")
         self.btn_zoom_in.clicked.connect(lambda: self.view.zoom(0.8))
         self.btn_zoom_out.clicked.connect(lambda: self.view.zoom(1.25))
         zr.addWidget(self.btn_zoom_in); zr.addWidget(self.btn_zoom_out)
@@ -270,6 +282,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cmb_highlight.currentIndexChanged.connect(self._set_highlight)
         vv.addWidget(self.cmb_highlight)
         v.addWidget(self.gb_view)
+
+        # ---- légende des couleurs : une teinte par sous-ensemble
+        self.gb_legend = QtWidgets.QGroupBox()
+        lg = QtWidgets.QGridLayout(self.gb_legend)
+        lg.setHorizontalSpacing(8)
+        lg.setVerticalSpacing(3)
+        self.legend_labels = {}
+        for i, key in enumerate(SUBSYSTEM_KEYS):
+            sw = QtWidgets.QLabel()
+            pm = QtGui.QPixmap(26, 14)
+            pm.fill(QtGui.QColor.fromRgbF(*lay.COLORS[key][:3]))
+            sw.setPixmap(pm)
+            sw.setFixedSize(26, 14)
+            name = QtWidgets.QLabel()
+            lg.addWidget(sw, i, 0)
+            lg.addWidget(name, i, 1)
+            self.legend_labels[key] = (sw, name)
+        lg.setColumnStretch(1, 1)
+        v.addWidget(self.gb_legend)
         v.addStretch(1)
 
         # largeur imposée au CONTENU, pas au panneau : le dock garde alors
@@ -340,7 +371,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for code, label in LANGUAGES.items():
             a = QtGui.QAction(label, self, checkable=True)
             a.setChecked(code == self.lang)
-            a.triggered.connect(lambda _c, k=code: self.set_language(k))
+            a.triggered.connect(lambda _c, k=code: self._choose_language(k))
             grp.addAction(a); self.m_lang.addAction(a)
             self.lang_actions[code] = a
 
@@ -411,7 +442,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.chk_labels.setText(tr("view.labels", L))
         self.chk_labels.setToolTip(tr("view.labels.tip", L))
         self.lbl_explode.setText(tr("view.explode", L))
-        self.sld_explode.setToolTip(tr("view.explode.tip", L))
+        self.sld_explode.setToolTip(tr(
+            "view.explode.tip" if self.sld_explode.isEnabled()
+            else "view.explode.vector", L))
+        self.gb_legend.setTitle(tr("legend.title", L))
+        self.gb_legend.setToolTip(tr("legend.tip", L))
+        for key, (sw, name) in self.legend_labels.items():
+            name.setText(tr(f"sub.{key}", L))
+            sw.setToolTip(tr(f"sub.{key}", L))
         self.lbl_render.setText(tr("view.render", L))
         self.cmb_render.setToolTip(tr("view.render.tip", L))
         self.cmb_render.blockSignals(True)
@@ -482,8 +520,39 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_about.setText(tr("menu.help.about", L))
         self.refresh()
 
+    def _choose_language(self, code: str):
+        """Choix fait dans le menu : il est retenu pour les lancements suivants."""
+        try:
+            QtCore.QSettings("Anticythere3D", "Anticythere3D").setValue("lang", code)
+        except Exception:
+            pass
+        self.set_language(code)
+
+    def _install_qt_translation(self, code: str):
+        """Traduit aussi ce que Qt dessine lui-même : boutons standard,
+        sélecteurs de fichiers, calendrier. Sans cela, l'interface française
+        affichait « Cancel », « Save » ou « Look in: »."""
+        app = QtWidgets.QApplication.instance()
+        if app is None:
+            return
+        old = getattr(self, "_qt_translator", None)
+        if old is not None:
+            app.removeTranslator(old)
+            self._qt_translator = None
+        QtCore.QLocale.setDefault(QtCore.QLocale(
+            "fr_FR" if code == "fr" else "en_GB"))
+        if code == "en":
+            return
+        tr_ = QtCore.QTranslator(app)
+        path = QtCore.QLibraryInfo.path(
+            QtCore.QLibraryInfo.LibraryPath.TranslationsPath)
+        if tr_.load(f"qtbase_{code}", path):
+            app.installTranslator(tr_)
+            self._qt_translator = tr_
+
     def set_language(self, code: str):
         self.lang = code
+        self._install_qt_translation(code)
         # les cadrans gravés portent les noms des signes dans la langue de
         # l'interface : il faut régénérer leurs textures, sinon ils restent
         # dans la langue de départ
@@ -505,6 +574,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self._dial_prev = value
         self.mech.turns += delta / 360.0
         self.refresh()
+
+    def _crank_dragged(self, crank_turns: float):
+        """La poignée a été tournée à la souris de `crank_turns` tours.
+
+        La manivelle est l'axe de a1 : un tour de poignée fait 48/223 de tour
+        de b1, soit 78,6 jours — et en sens contraire, puisque a1 et b1
+        s'engrènent. Tout le mécanisme suit, comme sur la vraie machine.
+        """
+        self.mech.turns += crank_turns / lay.CRANK_PER_TURN
+        self.refresh()
+
+    def _sync_dial(self):
+        """Le bouton rond suit la machine, quelle que soit la commande utilisée."""
+        value = int(round((self.mech.turns % 1.0) * 360.0)) % 360
+        if self.dial.value() != value:
+            self.dial.blockSignals(True)
+            self.dial.setValue(value)
+            self.dial.blockSignals(False)
+        self._dial_prev = value
 
     def _toggle_play(self, on: bool):
         self._playing = on
@@ -535,6 +623,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.cmb_render.blockSignals(False)
         self.act_svg.setEnabled(mode == "vector" and HAS_SVG)
         self.act_pdf.setEnabled(mode == "vector")
+        # l'éclatement se fait le long des arbres, donc dans l'axe de visée du
+        # rendu vectoriel : il n'y aurait rien à voir
+        self.sld_explode.setEnabled(mode != "vector")
+        self.lbl_explode.setEnabled(mode != "vector")
+        self.sld_explode.setToolTip(tr(
+            "view.explode.vector" if mode == "vector" else "view.explode.tip",
+            self.lang))
         self.refresh()
 
     def _set_view_flag(self, attr: str, state: bool):
@@ -544,7 +639,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _set_explode(self, value: int):
         for v in (self.view3d, self.view_vec):
-            v.explode = value / 100.0
+            if hasattr(v, "set_explode"):
+                v.set_explode(value / 100.0)
+            else:
+                v.explode = value / 100.0
         self.refresh()
 
     def _set_profile(self, index: int):
@@ -602,6 +700,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.view.set_pointers(o.mean_sun, o.moon_true, o.metonic, o.saros)
         if hasattr(self.view, "set_planets"):
             self.view.set_planets(o.planets, o.moon_true, o.mean_sun)
+        self._sync_dial()
         self._fill_table(o)
         self.status.showMessage(tr("status.turns", self.lang, turns=o.turns,
                                    days=o.days, years=o.days / 365.24219))
@@ -745,7 +844,8 @@ class MainWindow(QtWidgets.QMainWindow):
         bb = QtWidgets.QDialogButtonBox()
         go = bb.addButton(tr("eclipse.goto", L),
                           QtWidgets.QDialogButtonBox.ButtonRole.AcceptRole)
-        bb.addButton(QtWidgets.QDialogButtonBox.StandardButton.Close)
+        bb.addButton(QtWidgets.QDialogButtonBox.StandardButton.Close).setText(
+            tr("dlg.close", L))
         go.clicked.connect(lambda: (
             self._goto_jd(table.item(max(table.currentRow(), 0), 0)
                           .data(QtCore.Qt.ItemDataRole.UserRole)), dlg.close()))
@@ -808,6 +908,13 @@ class MainWindow(QtWidgets.QMainWindow):
         box.setText(tr("update.available", L, version=info["version"],
                        current=__version__))
         notes = (info.get("notes") or "").strip()
+        try:
+            import updater as _upd
+            # les notes publiées portent les deux langues ; on ne montre
+            # que celle de l'interface
+            notes = _upd.notes_dans_la_langue(notes, L).strip()
+        except Exception:
+            pass
         if notes:
             box.setDetailedText(notes[:4000])
         if installe:
@@ -924,6 +1031,8 @@ class MainWindow(QtWidgets.QMainWindow):
             | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
         btns.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setText(
             tr("report.send", L))
+        btns.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel).setText(
+            tr("dlg.cancel", L))
         form.addWidget(btns)
         btns.accepted.connect(dlg.accept)
         btns.rejected.connect(dlg.reject)
@@ -959,78 +1068,77 @@ class MainWindow(QtWidgets.QMainWindow):
             msg = tr("report.local", L, path=chemin or "-")
         QtWidgets.QMessageBox.information(self, tr("report.thanks", L), msg)
 
-    def _help(self, which: str):
+    def help_html(self, which: str) -> str:
+        """Contenu HTML d'une page d'aide, dans la langue de l'interface."""
         L = self.lang
         if which == "shortcuts":
-            html = ("<h3>%s</h3><table>"
-                    "<tr><td><b>F</b></td><td>%s</td></tr>"
-                    "<tr><td><b>B</b></td><td>%s</td></tr>"
-                    "<tr><td><b>I</b></td><td>%s</td></tr>"
-                    "<tr><td><b>F1</b></td><td>%s</td></tr>"
-                    "<tr><td><b>Ctrl+Q</b></td><td>%s</td></tr></table>"
-                    % (tr("menu.help.shortcuts", L), tr("menu.view.front", L),
-                       tr("menu.view.back", L), tr("menu.view.iso", L),
-                       tr("menu.help.manual", L), tr("menu.file.quit", L)))
-        elif which == "science":
+            rows = [("F", tr("menu.view.front", L)),
+                    ("B", tr("menu.view.back", L)),
+                    ("I", tr("menu.view.iso", L)),
+                    ("R", tr("nav.home.tip", L)),
+                    ("E", tr("menu.eclipse.next", L)),
+                    (tr("keys.space", L), tr("ctrl.play.tip", L)),
+                    ("← ↑ → ↓", tr("keys.arrows", L)),
+                    (tr("keys.pages", L), tr("keys.roll", L)),
+                    ("+ −", tr("keys.zoom", L)),
+                    ("F1", tr("menu.help.manual", L)),
+                    ("Ctrl+Q", tr("menu.file.quit", L))]
+            body = "".join(f"<tr><td><b>{k}</b></td><td>{v}</td></tr>"
+                           for k, v in rows)
+            return (f"<h3>{tr('menu.help.shortcuts', L)}</h3>"
+                    f"<table cellpadding=3>{body}</table>"
+                    f"<h3>{tr('keys.mouse', L)}</h3>"
+                    f"<p>{tr('nav.hint', L).replace(chr(10), '<br>')}</p>")
+        if which == "science":
             rows = "".join(
                 f"<tr><td>{k}</td><td align='right'><b>{v}</b></td>"
                 f"<td align='right'>{float(v):.8f}</td></tr>"
                 for k, v in RATIOS.items())
-            html = ("<h3>%s</h3><p>%s</p><table cellpadding=4>"
+            return ("<h3>%s</h3><p>%s</p><table cellpadding=4>"
                     "<tr><th>%s</th><th>%s</th><th>%s</th></tr>%s</table>"
                     % (tr("menu.help.science", L),
-                       tr("label.gears", L, n=len(TEETH),
-                          t=sum(TEETH.values())),
-                       "sortie / output", "rapport exact / exact ratio",
-                       "tours par an / turns per year", rows))
-        elif which == "about":
+                       tr("label.gears", L, n=len(TEETH), t=sum(TEETH.values())),
+                       tr("science.output", L), tr("science.ratio", L),
+                       tr("science.per_year", L), rows))
+        if which == "about":
             from . import __version__
-            html = ("<h3>%s</h3><p>%s</p><p><b>Version %s</b></p>"
+            return ("<h3>%s</h3><p>%s</p><p><b>%s</b></p>"
                     "<p>Freeth <i>et al.</i>, Nature 444 (2006), Nature 454 (2008),"
                     " Scientific Reports 11:5821 (2021).</p>"
                     "<p><a href='https://github.com/ARP273-ROSE/Anticythere3D'>"
                     "github.com/ARP273-ROSE/Anticythere3D</a></p>"
-                    % (tr("app.title", L), tr("app.subtitle", L), __version__))
-        else:
-            html = self._manual_html()
+                    % (tr("app.title", L), tr("app.subtitle", L),
+                       tr("about.version", L, version=__version__)))
+        return self._manual_html()
+
+    def _help(self, which: str):
+        L = self.lang
+        html = self.help_html(which)
         dlg = QtWidgets.QDialog(self)
-        dlg.setWindowTitle(tr("menu.help", L))
+        dlg.setWindowTitle(tr("menu.help", L).replace("&", ""))
         dlg.resize(760, 560)
         v = QtWidgets.QVBoxLayout(dlg)
         br = QtWidgets.QTextBrowser(); br.setHtml(html)
+        br.setOpenExternalLinks(True)
         v.addWidget(br)
         bb = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Close)
+        bb.button(QtWidgets.QDialogButtonBox.StandardButton.Close).setText(
+            tr("dlg.close", L))
         bb.rejected.connect(dlg.close); bb.accepted.connect(dlg.close)
         v.addWidget(bb)
         dlg.exec()
 
     def _manual_html(self) -> str:
         L = self.lang
-        parts = [f"<h2>{tr('menu.help.manual', L)}</h2>"]
-        if L == "fr":
-            parts.append(
-                "<p>La machine n'a <b>qu'une seule entrée</b> : la manivelle. "
-                "Tourne le bouton rond, ou clique « Animer ». Un tour complet "
-                "vaut une année ; tous les pointeurs suivent.</p>"
-                "<p>Décoche <b>Enveloppe</b> pour retirer le boîtier et voir "
-                "les 33 roues. Le curseur <b>Éclatement</b> écarte les 16 plans "
-                "d'engrènement. Le menu <b>Mettre en évidence</b> éteint tout "
-                "sauf un sous-ensemble.</p>"
-                "<p>Le panneau de droite donne en permanence ce que lisait le "
-                "propriétaire de la machine, et, tout en bas, l'écart entre la "
-                "machine et le ciel réel calculé par éphémérides modernes.</p>")
-        else:
-            parts.append(
-                "<p>The mechanism has <b>a single input</b>: the crank. Turn the "
-                "round knob, or click “Animate”. One full turn is one year; every "
-                "pointer follows.</p>"
-                "<p>Untick <b>Case</b> to remove the housing and see all 33 gears. "
-                "The <b>Level explosion</b> slider spreads the 16 meshing planes "
-                "apart. <b>Highlight</b> dims everything but one subsystem.</p>"
-                "<p>The right-hand panel shows what the owner of the machine would "
-                "have read, and at the bottom, the mechanism's error against modern "
-                "ephemerides.</p>")
+        parts = [f"<h2>{tr('menu.help.manual', L)}</h2>",
+                 tr("manual.body", L)]
+        parts.append(f"<h4>{tr('legend.title', L)}</h4><table cellpadding=2>")
+        for key in SUBSYSTEM_KEYS:
+            c = QtGui.QColor.fromRgbF(*lay.COLORS[key][:3]).name()
+            parts.append(f"<tr><td bgcolor='{c}' width=28>&nbsp;</td>"
+                         f"<td>{tr(f'sub.{key}', L)}</td></tr>")
+        parts.append("</table>")
         for key in SUBSYSTEM_KEYS:
             parts.append(f"<h4>{tr(f'sub.{key}', L)}</h4>"
                          f"<p>{tr(f'expl.{key}', L).replace(chr(10), '<br>')}</p>")
@@ -1070,7 +1178,7 @@ class MainWindow(QtWidgets.QMainWindow):
             else "involute"
 
         self._stl_thread = QtCore.QThread(self)
-        self._stl_worker = _StlExporter(d, profile)
+        self._stl_worker = _StlExporter(d, profile, self.lang)
         self._stl_worker.moveToThread(self._stl_thread)
         self._stl_thread.started.connect(self._stl_worker.run)
         self._stl_worker.done.connect(self._stl_done)
@@ -1107,15 +1215,16 @@ class _StlExporter(QtCore.QObject):
 
     done = QtCore.pyqtSignal(bool, str, str)
 
-    def __init__(self, outdir: str, profile: str):
+    def __init__(self, outdir: str, profile: str, lang: str = "fr"):
         super().__init__()
         self._outdir = outdir
         self._profile = profile
+        self._lang = lang
 
     def run(self):
         from .stl_export import export_all, summary
         try:
             rows = export_all(self._outdir, profile=self._profile)
-            self.done.emit(True, summary(rows), self._outdir)
+            self.done.emit(True, summary(rows, self._lang), self._outdir)
         except Exception as exc:                     # disque plein, droits…
             self.done.emit(False, str(exc), self._outdir)

@@ -6,39 +6,51 @@
 
 *[English version below](#anticythere3d--antikythera-mechanism-simulator)*
 
-Un simulateur 3D **fonctionnel** de la machine d'Anticythère : on tourne la
-manivelle, les 33 roues tournent, et tous les cadrans affichent ce que lisait
-son propriétaire il y a 2 100 ans. L'enveloppe se retire pour voir le mécanisme,
-et chaque sous-ensemble est expliqué dans l'application.
+Un simulateur 3D **fonctionnel** de la machine d'Anticythère : on saisit la
+manivelle à la souris et on la tourne, les 33 roues tournent, et tous les
+cadrans affichent ce que lisait son propriétaire il y a 2 100 ans. L'enveloppe
+se retire pour voir le mécanisme, l'éclatement écarte les étages le long des
+arbres, et chaque sous-ensemble est expliqué dans l'application.
 
-Interface **bilingue français / anglais**, commutable à chaud.
+Interface **entièrement bilingue français / anglais**, commutable à chaud, qui
+démarre dans la langue du système. **Windows, macOS et Linux**, avec mise à
+jour automatique et rapports d'incident sur les trois.
 
 Deux rendus au choix : **3D** temps réel (fond clair, antialiasing 8×) et
 **vectoriel 2D**, en courbes, exportable en SVG / PDF — sans aucun pixel.
 
 ![vue 3D](docs/vue_3d_clair.png)
+![la manivelle tournée à la souris fait avancer les cadrans](docs/manivelle_souris.png)
+![éclatement à 0, 50 et 100 %](docs/vue_eclatee.png)
 ![vue vectorielle](docs/vue_vectorielle.png)
 
 ---
 
 ## Installation
 
-### Le plus simple : l'exécutable
+### Le plus simple : le paquet prêt à l'emploi
 
-Télécharge l'installeur (lien permanent vers la dernière version) :
-**<https://github.com/ARP273-ROSE/Anticythere3D/releases/latest/download/Anticythere3D-Setup.exe>**
-et lance-le. Il s'installe dans ton profil utilisateur, sans mot de passe
-administrateur. Au premier lancement, Windows peut afficher « Windows a
-protégé votre ordinateur » (installeur non signé) : *Informations
-complémentaires* puis *Exécuter quand même*. Cet avertissement n'apparaît
-qu'une fois.
+Tous les paquets sont sur la page des
+[versions](https://github.com/ARP273-ROSE/Anticythere3D/releases/latest). Ils
+embarquent leur propre Python : rien d'autre à installer, aucun mot de passe
+administrateur.
 
-Ensuite, le programme se met à jour **tout seul** : il détecte la nouvelle
-version au démarrage et propose de l'installer (ou **Aide → Rechercher une
-mise à jour**). S'il plante ou se fige, il peut le signaler de lui-même à son
+| Système | Fichier | Installation |
+|---|---|---|
+| **Windows** | [`Anticythere3D-Setup.exe`](https://github.com/ARP273-ROSE/Anticythere3D/releases/latest/download/Anticythere3D-Setup.exe) (lien permanent) | Lancer l'installeur. « Windows a protégé votre ordinateur » (installeur non signé) : *Informations complémentaires* puis *Exécuter quand même*, une seule fois. |
+| **macOS** Apple Silicon / Intel | `Anticythere3D-<version>-macos-arm64.dmg` / `-macos-x86_64.dmg` | Ouvrir l'image, glisser l'application dans *Applications*. Non signée : la première fois, **clic droit → Ouvrir**, puis confirmer. |
+| **Linux** x86_64 / ARM64 | `Anticythere3D-<version>-linux-x86_64.tar.gz` / `-linux-arm64.tar.gz` | Décompresser, lancer `./installer.sh` : installation dans `~/.local/share`, entrée de menu, **sans sudo**. |
+
+Ensuite, le programme se met à jour **tout seul**, sur les trois systèmes : il
+détecte la nouvelle version au démarrage et propose de l'installer (ou **Aide →
+Rechercher une mise à jour**) ; seule une petite archive de code est
+téléchargée. S'il plante ou se fige, il peut le signaler de lui-même à son
 auteur, avec ton accord (demandé au premier lancement, modifiable dans le menu
 Aide) ; **Aide → Signaler un problème…** envoie un signalement écrit. Rien
-d'autre ne quitte la machine : ni noms de fichiers, ni nom d'utilisateur.
+d'autre ne quitte la machine : ni noms de fichiers, ni nom d'utilisateur. Les
+réglages et rapports vivent hors du dossier d'installation (`%LOCALAPPDATA%`,
+`~/Library/Application Support`, `~/.local/share`) : une mise à jour ne les
+touche pas.
 
 ### Sous Windows, depuis les sources
 
@@ -62,7 +74,7 @@ redémarre pour les charger. Hors environnement virtuel il installe avec
 ```bash
 python run.py --check        # liste ce qui manque, n'installe rien
 python run.py --no-install   # démarre sans rien installer
-python run.py --lang en      # interface en anglais
+python run.py --lang en      # interface en anglais (défaut : langue du système)
 python run.py --vector       # démarre en rendu vectoriel
 python run.py --samples 16   # antialiasing plus poussé (défaut : 8)
 ```
@@ -91,9 +103,10 @@ rendu vectoriel, qui montre les mêmes rotations — elle ne plante pas.
 
 | Fonction | Détail |
 |---|---|
-| **Manivelle** | La seule entrée de la machine, comme sur l'original. Un tour = une année. Bouton rotatif, pas à pas (+1 jour / +1 lunaison / +1 an), animation continue à vitesse réglable, ou saisie directe d'une date. |
+| **Manivelle** | La seule entrée de la machine, comme sur l'original. **On saisit sa poignée à la souris**, dans la vue 3D comme dans le rendu vectoriel, et on la fait tourner : un tour de poignée = 48/223 d'année (78,6 jours), tout le mécanisme suit. Le curseur devient une main au survol ; ailleurs, glisser fait toujours tourner la vue. Aussi : bouton rotatif (un tour = une année), pas à pas (+1 jour / +1 lunaison / +1 an), animation continue, ou saisie directe d'une date. |
 | **Vue 3D** | Fond clair, antialiasing 8×. Rotation, zoom, vues avant / arrière / trois-quarts. Les 33 roues tournent **à leur vitesse réelle**, y compris le tenon-fente et son porte-satellite qui orbite. |
-| **Retirer l'enveloppe** | Une case à cocher enlève le boîtier, une autre les platines. Le curseur *Éclatement* écarte les 16 plans d'engrènement pour montrer l'empilement. |
+| **Retirer l'enveloppe** | Une case à cocher enlève le boîtier, une autre les platines. Le curseur *Éclatement des étages* écarte les 16 plans d'engrènement **le long des arbres** : aucune roue ne bouge dans son plan, celles qui s'engrènent restent face à face, les arbres s'allongent, et aucune pièce n'en pénètre une autre (vérifié par les tests à six valeurs du curseur). |
+| **Couleurs** | Une couleur par sous-ensemble (entrée, Lune, tenon-fente, métonique, callippique, Saros, exeligmos), avec sa légende. Palette calculée : écart CIEDE2000 > 20 entre tous les trains, et encore > 15 entre trains voisins en deutéranopie et protanopie simulées. |
 | **Mise en évidence** | Éteint tout sauf un sous-ensemble : entrée, Lune, anomalie, métonique, callippique, Saros, exeligmos. |
 | **Profil des dents** | Bascule entre les **triangles** de la machine antique et la **développante de cercle** moderne — la différence se voit à l'écran. |
 | **Report des cadrans** | Panneau détachable : date, calendrier égyptien, Soleil et Lune dans le zodiaque, correction d'anomalie, phase, ligne des nœuds, case métonique, cadran callippique, Jeux, case du Saros, correction de l'exeligmos, prédiction d'éclipse, planètes, **et l'écart entre la machine et le ciel réel**. |
@@ -175,28 +188,38 @@ collision, encombrement 277 × 257 mm au module 1,0.
 anticythere/
   kinematics.py   trains, rapports exacts, tenon-fente, sorties des cadrans
   astro.py        éphémérides de référence (Meeus) et calage de la machine
-  layout.py       implantation des arbres, étages, couleurs
+  layout.py       implantation des arbres, étages, éclatement, couleurs
+  palette.py      CIEDE2000, contraste, simulation des daltonismes
   geometry.py     maillages 3D (roues, bras, spirales, pointeurs, boîtier)
   view3d.py       vue OpenGL (fond clair, MSAA 8x)
   view2d.py       rendu vectoriel QPainter + export SVG / PDF
   mainwindow.py   fenêtre, commandes, report des cadrans, explications, aide
   i18n.py         toutes les chaînes, FR et EN
 tests/
-  test_mechanism.py   10 séries de tests, exécutables sans écran
+  test_mechanism.py      16 séries de tests, exécutables sans écran
+  test_gui.py            11 séries de tests d'interface (Xvfb)
+  test_confidentialite.py  garde-fou : aucune donnée personnelle
 run.py
+build_package.py, installer.iss   paquet et installeur Windows
+build_unix.py                     paquets macOS (.app) et Linux (dossier + installer.sh)
 ```
 
 ## Tests
 
 ```bash
 python tests/test_mechanism.py
+xvfb-run -a python tests/test_gui.py      # sous Linux : il faut un vrai serveur X
 ```
 
 Vérifie les rapports contre les valeurs calculées indépendamment sous SageMath,
 le mois anomalistique, le tenon-fente, le retour à l'origine de chaque cadran
 après un cycle complet, les périodes planétaires, l'astronomie de référence,
-le budget d'erreur, la validité des 33 maillages, les 17 entraxes, et
-l'absence de chaîne non traduite.
+le budget d'erreur, la validité des 33 maillages, les 17 entraxes, l'éclatement
+(aucune collision, aucun déplacement dans le plan), la palette (CIEDE2000,
+daltonismes simulés) et l'absence de texte non traduit — clés manquantes **et**
+textes affichés écrits en dur. Les tests d'interface tournent la manivelle à la
+souris, vérifient la molette, l'éclatement réellement affiché, et qu'aucun
+texte français ne reste dans l'interface anglaise (et inversement).
 
 ## Sources
 
@@ -220,23 +243,32 @@ l'application.
 
 # Anticythere3D — Antikythera Mechanism simulator
 
-A **working** 3D simulator of the Antikythera Mechanism: turn the crank, all 33
-gears turn, and every dial shows what its owner read 2,100 years ago. The case
-can be removed to reveal the movement, and each subsystem is explained inside
-the application. Fully **bilingual French / English**, switchable at runtime.
+A **working** 3D simulator of the Antikythera Mechanism: grab the crank with the
+mouse and turn it, all 33 gears turn, and every dial shows what its owner read
+2,100 years ago. The case can be removed to reveal the movement, the levels can
+be exploded along the arbors, and each subsystem is explained inside the
+application. Fully **bilingual French / English**, switchable at runtime,
+starting in the system's language. **Windows, macOS and Linux**, with automatic
+updates and crash reports on all three.
 
 ## Install
 
-**Windows, the easy way**: download the installer (permanent link to the
-latest version)
-**<https://github.com/ARP273-ROSE/Anticythere3D/releases/latest/download/Anticythere3D-Setup.exe>**
-and run it. It installs in your user profile, no administrator password. On
-first launch Windows may show "Windows protected your PC" (unsigned
-installer): *More info*, then *Run anyway*. The program then updates itself
-(it detects a new version at start-up, or **Help → Check for updates**), and
-can report crashes and freezes to its author with your consent (asked once,
-changeable in the Help menu); **Help → Report a problem…** sends a written
-report. Nothing else leaves the machine: no file names, no user name.
+**Ready-made packages** are on the
+[releases page](https://github.com/ARP273-ROSE/Anticythere3D/releases/latest).
+They bundle their own Python; no administrator password is needed.
+
+| System | File | How to install |
+|---|---|---|
+| **Windows** | [`Anticythere3D-Setup.exe`](https://github.com/ARP273-ROSE/Anticythere3D/releases/latest/download/Anticythere3D-Setup.exe) (permanent link) | Run the installer. "Windows protected your PC" (unsigned installer): *More info*, then *Run anyway*, once. |
+| **macOS** Apple Silicon / Intel | `Anticythere3D-<version>-macos-arm64.dmg` / `-macos-x86_64.dmg` | Open the image, drag the app into *Applications*. Unsigned: the first time, **right-click → Open**, then confirm. |
+| **Linux** x86_64 / ARM64 | `Anticythere3D-<version>-linux-x86_64.tar.gz` / `-linux-arm64.tar.gz` | Unpack, run `./installer.sh`: installs into `~/.local/share` with a menu entry, **no sudo**. |
+
+The program then updates itself on all three systems (it detects a new
+version at start-up, or **Help → Check for updates**), and can report crashes
+and freezes to its author with your consent (asked once, changeable in the
+Help menu); **Help → Report a problem…** sends a written report. Nothing else
+leaves the machine: no file names, no user name. Settings and reports live
+outside the installation folder, so updates never touch them.
 
 **From source**:
 
@@ -252,8 +284,12 @@ diagram rather than failing.
 
 ## What it does
 
-Crank input (one turn = one year), 3D view with removable case and exploded
-levels, subsystem highlighting, switch between the **ancient triangular tooth
+Crank input — **grab the handle with the mouse and turn it** (one turn of the
+handle = 48/223 of a year, 78.6 days), or use the knob (one turn = one year) —,
+3D view with removable case, levels exploded **along the arbors** (no gear ever
+moves within its plane or intersects another), a colour per subsystem chosen
+to stay distinct with colour-vision deficiency (CIEDE2000 > 20, legend in the
+interface), subsystem highlighting, switch between the **ancient triangular tooth
 profile** and the modern **involute**, a detachable panel reporting every dial
 reading, per-subsystem explanations, built-in manual (F1), bilingual tooltips
 throughout, plus a second **vector rendering mode** (real tooth outlines, wheel
@@ -306,10 +342,15 @@ budget (unmodelled evection and variation, `254/19` drift, apogee precession).
 python tests/test_mechanism.py
 ```
 
-Ten test groups, all headless: exact ratios cross-checked against SageMath,
+Sixteen headless test groups: exact ratios cross-checked against SageMath,
 anomalistic month, pin-and-slot extremes, every dial returning to its origin
 after a full cycle, planetary period relations, reference astronomy, error
-budget, 33 valid meshes, 17 exact centre distances, and no untranslated string.
+budget, 33 valid meshes, 17 exact centre distances, collision-free explosion,
+colour palette (CIEDE2000, simulated colour blindness), and no untranslated
+string — neither missing keys nor hard-coded displayed text. Plus eleven GUI
+test groups (`xvfb-run -a python tests/test_gui.py`): crank turned with the
+mouse in both renderings, mouse wheel, explosion as actually displayed, and no
+French left in the English interface (and vice versa).
 
 ---
 

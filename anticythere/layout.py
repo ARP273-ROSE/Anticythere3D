@@ -20,6 +20,8 @@ Script : ``anticythere_implantation.sage``.
 
 from __future__ import annotations
 
+import math
+
 MODULE = 1.0                 # mm — module retenu (b1 = 223 mm de diamètre)
 GEAR_THICKNESS = 2.6         # mm
 LEVEL_PITCH = 3.4            # mm entre deux étages (roue + jeu)
@@ -98,21 +100,38 @@ SUBSYSTEMS = {
     "exeligmos": ("g2", "h1", "h2", "i1"),
 }
 
-#: palette pour fond CLAIR (parchemin) — teintes soutenues, lisibles sur ivoire
+#: Palette des sous-ensembles, pour fond CLAIR (parchemin) et rendu vectoriel.
+#:
+#: Choisie par le calcul (`anticythere/palette.py`), pas à l'œil : l'ancienne
+#: palette (bronze, argent bleuté, bleu, vert, prune, bleu-violet…) faisait
+#: se confondre le métonique, l'exeligmos et le Saros, et devenait illisible
+#: pour un daltonien. Contraintes vérifiées par `tests/test_mechanism.py` :
+#:
+#: * écart CIEDE2000 ≥ 20 entre TOUS les sous-ensembles (vision normale) ;
+#: * en deutéranopie et en protanopie simulées (Machado 2009), ≥ 15 entre
+#:   sous-ensembles qui s'engrènent, ≥ 10 entre tous ;
+#: * contraste WCAG ≥ 3 sur le fond parchemin, pour que le trait se lise.
 COLORS = {
-    "input":     (0.72, 0.53, 0.04, 1.0),   # bronze doré
-    "moon":      (0.42, 0.48, 0.56, 1.0),   # argent bleuté
-    "anomaly":   (0.69, 0.23, 0.18, 1.0),   # rouge brique
-    "metonic":   (0.12, 0.38, 0.55, 1.0),   # bleu
-    "callippic": (0.10, 0.44, 0.24, 1.0),   # vert
-    "saros":     (0.49, 0.24, 0.60, 1.0),   # prune
-    "exeligmos": (0.29, 0.34, 0.62, 1.0),   # bleu-violet
+    "input":     (0.871, 0.412, 0.063, 1.0),   # #DE6910 orange — entrée
+    "moon":      (0.051, 0.349, 0.757, 1.0),   # #0D59C1 bleu — Lune
+    "anomaly":   (0.557, 0.090, 0.000, 1.0),   # #8E1700 rouge sang — tenon-fente
+    "metonic":   (0.114, 0.584, 0.580, 1.0),   # #1D9594 bleu-vert — métonique
+    "callippic": (0.471, 0.435, 0.298, 1.0),   # #786F4C kaki — callippique
+    "saros":     (0.518, 0.098, 0.349, 1.0),   # #841959 framboise — Saros
+    "exeligmos": (0.714, 0.424, 0.804, 1.0),   # #B66CCD lilas — exeligmos
     "arbor":     (0.28, 0.28, 0.30, 1.0),
     "plate":     (0.55, 0.45, 0.28, 0.30),
     "case":      (0.45, 0.34, 0.20, 0.30),
     "pointer":   (0.55, 0.16, 0.10, 1.0),
     "dial":      (0.66, 0.58, 0.36, 0.90),
 }
+
+#: paires de sous-ensembles qui s'engrènent ou partagent un arbre : ce sont
+#: elles qu'il faut distinguer d'abord, puisqu'elles se touchent à l'écran
+NEIGHBOURS = [("input", "moon"), ("input", "metonic"), ("moon", "anomaly"),
+              ("anomaly", "saros"), ("metonic", "saros"),
+              ("metonic", "callippic"), ("saros", "exeligmos"),
+              ("moon", "saros")]
 
 #: fond clair « parchemin » de la scène 3D et du rendu vectoriel
 BACKGROUND = (0.961, 0.941, 0.902)          # #F5F0E6
@@ -121,20 +140,97 @@ INK = (0.16, 0.16, 0.18)                    # trait d'encre
 SUBSYSTEM_OF = {g: s for s, gears in SUBSYSTEMS.items() for g in gears}
 
 
-def level_z(level: int) -> float:
-    """Hauteur (mm) du plan d'un étage. L'étage 1 (b1) est à l'avant."""
-    return (N_LEVELS - level) * LEVEL_PITCH
+#: écart SUPPLÉMENTAIRE entre deux étages consécutifs à éclatement 100 %, en mm
+EXPLODE_GAP = 12.0
 
 
-def gear_position(name: str) -> tuple[float, float, float]:
+def level_pitch(explode: float = 0.0) -> float:
+    """Pas entre deux étages : 3,4 mm machine montée, jusqu'à 15,4 mm éclatée."""
+    return LEVEL_PITCH + max(0.0, min(1.0, explode)) * EXPLODE_GAP
+
+
+def level_z(level: int, explode: float = 0.0) -> float:
+    """Hauteur (mm) du plan d'un étage. L'étage 1 (b1) est à l'avant.
+
+    L'éclatement ne fait qu'ÉTIRER la pile le long des arbres : le fond
+    (étage 16) reste en place, chaque étage s'éloigne de son voisin d'autant,
+    et l'ordre des étages ne change jamais. L'ancienne formule ajoutait un
+    décalage de sens contraire au pas des étages : vers 57 % les 16 plans se
+    retrouvaient confondus, puis s'inversaient — les roues se rentraient
+    dedans.
+    """
+    return (N_LEVELS - level) * level_pitch(explode)
+
+
+def front_shift(explode: float = 0.0) -> float:
+    """De combien la façade avance quand on éclate la machine (mm)."""
+    return level_z(1, explode) - level_z(1, 0.0)
+
+
+def gear_position(name: str, explode: float = 0.0) -> tuple[float, float, float]:
     x, y = ARBORS[ARBOR_OF[name]]
-    return x, y, level_z(LEVELS[name])
+    return x, y, level_z(LEVELS[name], explode)
 
 
-def arbor_extent(arbor: str) -> tuple[float, float]:
+def orbit(x: float, y: float, carrier_turns: float) -> tuple[float, float]:
+    """Position d'un point porté par le porte-satellite e3 (axes k et K)."""
+    ex, ey = ARBORS["e"]
+    a = 2.0 * math.pi * carrier_turns
+    dx, dy = x - ex, y - ey
+    c, s = math.cos(a), math.sin(a)
+    return ex + c * dx - s * dy, ey + s * dx + c * dy
+
+
+def gear_placement(name: str, explode: float = 0.0,
+                   carrier_turns: float = 0.0) -> tuple[float, float, float]:
+    """Où se trouve une roue : (x, y) dans son plan, z le long des arbres.
+
+    (x, y) ne dépend QUE du porte-satellite, jamais de l'éclatement : c'est
+    l'invariant que vérifie le test d'éclatement.
+    """
+    x, y, z = gear_position(name, explode)
+    if ARBOR_OF[name] in ("k", "K"):
+        x, y = orbit(x, y, carrier_turns)
+    return x, y, z
+
+
+def arbor_extent(arbor: str, explode: float = 0.0) -> tuple[float, float]:
     """Plage de hauteurs (z_min, z_max) occupée par un arbre."""
-    zs = [level_z(LEVELS[g]) for g, a in ARBOR_OF.items() if a == arbor]
-    return min(zs) - 3.0, max(zs) + GEAR_THICKNESS + 3.0
+    zs = [level_z(LEVELS[g], explode) for g, a in ARBOR_OF.items() if a == arbor]
+    stub = arbor_stub(explode)
+    return min(zs) - stub, max(zs) + GEAR_THICKNESS + stub
+
+
+def arbor_stub(explode: float = 0.0) -> float:
+    """Dépassement d'un arbre au-delà de ses roues extrêmes, en mm.
+
+    Il doit rester inférieur au jeu entre deux étages (0,8 mm machine
+    montée) : à 3 mm, le bout d'arbre entrait dans la roue de l'étage voisin
+    (c dans d2, n dans m1). Il croît avec l'éclatement, moins vite que le jeu.
+    """
+    e = max(0.0, min(1.0, explode))
+    return 0.6 + 0.4 * e * EXPLODE_GAP
+
+
+#: arbres qui traversent jusqu'à un cadran : ils portent les aiguilles
+BACK_DIAL_ARBORS = ("n", "g", "o", "i")
+FRONT_DIAL_ARBORS = ("b",)
+
+
+def arbor_span(arbor: str, explode: float = 0.0) -> tuple[float, float]:
+    """Longueur DESSINÉE d'un arbre : ses roues, plus le prolongement jusqu'à
+    son cadran pour ceux qui portent une aiguille (fin de la lévitation).
+
+    Le dos (étage 16) ne bouge pas à l'éclatement ; la façade avance avec
+    l'étage 1, et l'arbre b, qui porte les aiguilles de devant, s'allonge
+    d'autant.
+    """
+    z0, z1 = arbor_extent(arbor, explode)
+    if arbor in BACK_DIAL_ARBORS:
+        z0 = level_z(N_LEVELS) - 8.0 - 12.0
+    if arbor in FRONT_DIAL_ARBORS:
+        z1 = level_z(1, explode) + 8.0 + 9.0
+    return z0, z1
 
 
 #: rayons extérieurs des deux spirales du dos, en mm (définis avant
@@ -179,6 +275,22 @@ CASE_DEPTH = (N_LEVELS + 1) * LEVEL_PITCH
 
 #: centre géométrique, pour recentrer la caméra
 CENTER = (CASE_CX, CASE_CY, CASE_DEPTH / 2.0)
+
+
+def center(explode: float = 0.0) -> tuple[float, float, float]:
+    """Centre de la scène : il recule avec la façade quand on éclate."""
+    return CASE_CX, CASE_CY, CASE_DEPTH / 2.0 + front_shift(explode) / 2.0
+
+
+# --- manivelle ---------------------------------------------------------------
+#: géométrie de la manivelle (cf. geometry.crank_mesh) : arbre, bras, poignée
+CRANK_SHAFT = 34.0
+CRANK_ARM = 26.0
+CRANK_HANDLE = 20.0
+#: rayon de la poignée autour de l'axe de a1
+CRANK_RADIUS = CRANK_ARM - 4.0
+#: tours de manivelle (roue a1) par tour de b1 = 223/48, de sens contraire
+CRANK_PER_TURN = -223.0 / 48.0
 
 # --- cadrans : géométrie calculée, pas ajustée à l'œil ---------------------
 # Tout ce bloc sort de `anticythere_cadrans.sage`, qui vérifie que chaque

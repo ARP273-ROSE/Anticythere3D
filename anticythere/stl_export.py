@@ -156,34 +156,43 @@ def _write_bom(path: str, rows: list[dict], module, thickness, clearance,
             w.writerow(r)
 
 
-def summary(rows: list[dict]) -> str:
+def summary(rows: list[dict], lang: str = "fr") -> str:
+    """Bilan de l'export, dans la langue de l'interface."""
+    from .i18n import tr
     total_tri = sum(r["triangles"] for r in rows)
     biggest = max(rows, key=lambda r: r["outer"])
-    return (f"{len(rows)} roues exportées, {total_tri} triangles au total.\n"
-            f"Plus grande : {biggest['name']} ({biggest['teeth']} dents), "
-            f"{biggest['outer']} mm hors tout.\n"
-            f"Plateau minimum requis : {math.ceil(biggest['outer']) + 5} mm.")
+    return tr("stl.summary", lang, n=len(rows), tri=total_tri,
+              name=biggest["name"], teeth=biggest["teeth"],
+              outer=biggest["outer"], plate=math.ceil(biggest["outer"]) + 5)
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Export STL des roues")
-    ap.add_argument("--out", default="stl", help="dossier de sortie")
+    ap = argparse.ArgumentParser(
+        description="Export STL des roues / STL export of the gears")
+    ap.add_argument("--out", default="stl", help="dossier de sortie / output folder")
     ap.add_argument("--module", type=float, default=lay.MODULE)
     ap.add_argument("--thickness", type=float, default=3.0)
     ap.add_argument("--clearance", type=float, default=0.15,
-                    help="jeu d'impression retiré aux dents (mm)")
+                    help="jeu d'impression retiré aux dents / printing "
+                         "clearance removed from the teeth (mm)")
     ap.add_argument("--bore", type=float, default=3.2,
-                    help="diamètre d'alésage (axe acier 3 mm + jeu)")
+                    help="diamètre d'alésage (axe acier 3 mm + jeu) / bore "
+                         "diameter (3 mm steel shaft + clearance)")
     ap.add_argument("--profile", choices=["involute", "triangular"],
                     default="involute")
     ap.add_argument("--only", nargs="*",
-                    help="n'exporter que ces roues, ex : b2 l1 l2 m1 m2 n1")
+                    help="n'exporter que ces roues / export only these gears, "
+                         "ex : b2 l1 l2 m1 m2 n1")
+    ap.add_argument("--lang", choices=["fr", "en"], default=None,
+                    help="langue des messages / message language")
     args = ap.parse_args(argv)
+    from .i18n import detect_language, tr
+    lang = args.lang or detect_language()
 
     rows = export_all(args.out, args.module, args.thickness, args.clearance,
                       args.bore, args.profile, args.only)
-    print(summary(rows))
-    print(f"Nomenclature : {os.path.join(args.out, 'nomenclature.csv')}")
+    print(summary(rows, lang))
+    print(tr("stl.bom", lang, path=os.path.join(args.out, "nomenclature.csv")))
     return 0
 
 

@@ -25,6 +25,8 @@
   "binaires": [],
   "fichiers_proteges": [],
   "verification_import": [
-    "anticythere"
+    "anticythere",
+    "anticythere.mainwindow",
+    "pyqtgraph.opengl"
   ]
 }

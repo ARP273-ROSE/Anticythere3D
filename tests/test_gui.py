@@ -15,7 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from PyQt6 import QtWidgets  # noqa: E402
+from PyQt6 import QtCore, QtGui, QtTest, QtWidgets  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -152,12 +152,286 @@ def main() -> int:
           and len(df.CORINTHIAN_MONTHS) == 12,
           "12 mois corinthiens, abreges a 4 lettres pour tenir dans la case")
 
+    # ------------------------------------------------ manivelle a la souris
+    print("\n[G7] Manivelle saisie a la souris (3D)")
+    w.set_language("fr")
+    w.set_render_mode("3d")
+    app.processEvents()
+    v = w.view3d
+    if hasattr(v, "crank_handle"):
+        v.setCameraPosition(distance=420, elevation=35, azimuth=-60)
+        v.update(); app.processEvents()
+        tourner_manivelle_3d(app, w, v)
+    else:
+        check(False, "vue 3D indisponible : manivelle 3D non testee")
+
+    print("\n[G8] Manivelle saisie a la souris (vectoriel)")
+    w.set_render_mode("vector")
+    w.view_vec.look_at("front")
+    app.processEvents()
+    tourner_manivelle_2d(app, w, w.view_vec)
+
+    # ------------------------------------------------ molette
+    print("\n[G9] Molette de la souris")
+    for vue, lire, nom in ((w.view3d, lambda x: -x.opts["distance"], "3D"),
+                           (w.view_vec, lambda x: x._zoom, "vectoriel")):
+        if nom == "3D" and not hasattr(vue, "crank_handle"):
+            continue
+        w.set_render_mode("3d" if nom == "3D" else "vector")
+        app.processEvents()
+        avant = lire(vue)
+        molette(app, vue, +240)
+        check(lire(vue) > avant, f"molette vers l'avant = zoom avant ({nom})")
+        avant = lire(vue)
+        molette(app, vue, -240)
+        check(lire(vue) < avant, f"molette vers l'arriere = zoom arriere ({nom})")
+        for _ in range(60):
+            molette(app, vue, +480)
+        if nom == "3D":
+            check(vue.opts["distance"] >= 40.0, "le zoom 3D est borne "
+                  f"(distance {vue.opts['distance']:.0f} mm)")
+    t0 = w.mech.turns
+    w.dial.setFocus()
+    molette(app, w.dial, -120)
+    check(w.mech.turns != t0, "la molette sur le bouton rond fait tourner "
+                              "la manivelle")
+
+    # ------------------------------------------------ eclatement reel
+    print("\n[G10] Eclatement dans la vue 3D")
+    w.set_render_mode("3d")
+    app.processEvents()
+    if hasattr(v, "_gears"):
+        from anticythere import layout as lay
+        ecarts, z_prec = [], {}
+        for val in (0, 25, 50, 75, 100):
+            w.sld_explode.setValue(val)
+            app.processEvents()
+            e = val / 100.0
+            for nom_r, item in v._gears.items():
+                m = item.transform()
+                x, y, z = m.column(3).x(), m.column(3).y(), m.column(3).z()
+                ref = lay.gear_placement(nom_r, 0.0, v._carrier)
+                if math.hypot(x - ref[0], y - ref[1]) > 1e-4:
+                    ecarts.append((nom_r, val, "plan"))
+                if abs(z - lay.gear_placement(nom_r, e, v._carrier)[2]) > 1e-4:
+                    ecarts.append((nom_r, val, "z"))
+                if nom_r in z_prec and z < z_prec[nom_r] - 1e-6:
+                    ecarts.append((nom_r, val, "recul"))
+                z_prec[nom_r] = z
+        check(not ecarts, "les roues affichees suivent l'eclatement calcule, "
+              "sans bouger dans leur plan", str(ecarts[:5]))
+        w.sld_explode.setValue(0)
+    w.set_render_mode("vector")
+    check(not w.sld_explode.isEnabled(),
+          "curseur d'eclatement grise en vectoriel (rien a y voir)")
+    w.set_render_mode("3d")
+
+    # ------------------------------------------------ anglais integral
+    print("\n[G11] Interface en anglais : aucun texte francais")
+    w.set_language("en")
+    app.processEvents()
+    textes = textes_visibles(w)
+    for page in ("manual", "science", "shortcuts", "about"):
+        textes.append(("aide " + page,
+                       QtGui.QTextDocumentFragment.fromHtml(
+                           w.help_html(page)).toPlainText()))
+    francais = [(ou, _FR.search(t.replace("et al.", "")).group(0), t[:70])
+                for ou, t in textes if semble_francais(t)]
+    check(not francais, f"{len(textes)} textes affiches, aucun en francais",
+          "\n    ".join(map(str, francais[:12])))
+    def bouton_standard():
+        bb = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        return bb.buttons()[0].text().replace("&", "")
+    check(bouton_standard() == "Cancel", "boutons standard de Qt en anglais")
+    w.set_language("fr")
+    app.processEvents()
+    check(bouton_standard() == "Annuler",
+          "boutons standard de Qt traduits en francais (qtbase_fr)",
+          bouton_standard())
+    textes_fr = textes_visibles(w)
+    anglais = [(ou, _EN.search(t).group(0), t[:70])
+               for ou, t in textes_fr if semble_anglais(t)]
+    check(not anglais, f"et l'inverse : {len(textes_fr)} textes, aucun en "
+          "anglais dans l'interface francaise",
+          "\n    ".join(map(str, anglais[:12])))
+
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"  {len(FAILURES)} ECHEC(S) : {FAILURES}")
         return 1
     print("  TOUS LES TESTS D'INTERFACE PASSENT")
     return 0
+
+
+# ----------------------------------------------------------------- outils
+def _deplacer(app, vue, point, boutons):
+    ev = QtGui.QMouseEvent(
+        QtCore.QEvent.Type.MouseMove, QtCore.QPointF(point),
+        QtCore.QPointF(vue.mapToGlobal(QtCore.QPoint(int(point.x()),
+                                                     int(point.y())))),
+        QtCore.Qt.MouseButton.NoButton, boutons,
+        QtCore.Qt.KeyboardModifier.NoModifier)
+    app.sendEvent(vue, ev)
+    app.processEvents()
+
+
+def molette(app, vue, delta):
+    centre = QtCore.QPointF(vue.width() / 2, vue.height() / 2)
+    ev = QtGui.QWheelEvent(
+        centre, QtCore.QPointF(vue.mapToGlobal(centre.toPoint())),
+        QtCore.QPoint(0, 0), QtCore.QPoint(0, delta),
+        QtCore.Qt.MouseButton.NoButton, QtCore.Qt.KeyboardModifier.NoModifier,
+        QtCore.Qt.ScrollPhase.NoScrollPhase, False)
+    app.sendEvent(vue, ev)
+    app.processEvents()
+
+
+def _quart_de_tour(app, w, vue, point_a):
+    """Saisit la poignee et lui fait faire un quart de tour, sens horaire vu
+    de face (le sens qui fait avancer le temps). Renvoie le nombre de tours
+    de b1 parcourus et les sorties avant / apres."""
+    from anticythere import layout as lay
+    o0, t0 = w.mech.outputs(), w.mech.turns
+    depart = point_a(None)
+    QtTest.QTest.mousePress(vue, QtCore.Qt.MouseButton.LeftButton,
+                            QtCore.Qt.KeyboardModifier.NoModifier,
+                            depart.toPoint())
+    a0 = 2 * math.pi * w.mech.gear_angles()["a1"]
+    n = 24
+    for k in range(1, n + 1):
+        p = point_a(a0 - (math.pi / 2) * k / n)
+        _deplacer(app, vue, p, QtCore.Qt.MouseButton.LeftButton)
+    QtTest.QTest.mouseRelease(vue, QtCore.Qt.MouseButton.LeftButton,
+                              QtCore.Qt.KeyboardModifier.NoModifier,
+                              p.toPoint())
+    return w.mech.turns - t0, o0, w.mech.outputs()
+
+
+def _verifier_quart(label, dt, o0, o1):
+    from anticythere import layout as lay
+    attendu = -0.25 / lay.CRANK_PER_TURN          # +0,0538 tour de b1
+    check(abs(dt - attendu) < 0.10 * abs(attendu),
+          f"{label} : un quart de tour de poignee -> {dt:+.4f} tour de b1 "
+          f"(attendu {attendu:+.4f}, soit {attendu * 365.24:.1f} jours)")
+    check(abs(o1.mean_sun - o0.mean_sun) > 0.04
+          and abs(o1.moon_true - o0.moon_true) > 0.5
+          and o1.metonic != o0.metonic and o1.saros != o0.saros,
+          f"{label} : les cadrans avancent (Soleil "
+          f"{(o1.mean_sun - o0.mean_sun) * 360:+.1f} deg, Lune "
+          f"{(o1.moon_true - o0.moon_true) * 360:+.0f} deg)")
+
+
+def tourner_manivelle_3d(app, w, v):
+    from anticythere import layout as lay
+    a, b = v.crank_handle()
+    centre = v.project((a + b) / 2)
+    check(v.hit_crank(centre), "la poignee est saisissable sous la souris")
+    loin = QtCore.QPointF(20, 20)
+    check(not v.hit_crank(loin), "un clic loin de la poignee ne la saisit pas")
+    ax, ay, z = v.crank_axis()
+    zh = v.crank_grip_z()
+    rot0 = QtGui.QQuaternion(v.opts["rotation"])
+
+    def point(ang):
+        if ang is None:
+            return centre
+        return v.project((ax + lay.CRANK_RADIUS * math.cos(ang),
+                          ay + lay.CRANK_RADIUS * math.sin(ang), zh))
+    dt, o0, o1 = _quart_de_tour(app, w, v, point)
+    _verifier_quart("3D", dt, o0, o1)
+    check(v.opts["rotation"] == rot0,
+          "saisir la manivelle ne fait pas tourner la camera")
+    check(w.dial.value() == int(round((w.mech.turns % 1) * 360)) % 360,
+          "le bouton rond suit la manivelle")
+    # glisser AILLEURS : la camera tourne, la machine ne bouge pas
+    t0 = w.mech.turns
+    QtTest.QTest.mousePress(v, QtCore.Qt.MouseButton.LeftButton,
+                            QtCore.Qt.KeyboardModifier.NoModifier, QtCore.QPoint(30, 30))
+    for k in range(1, 8):
+        _deplacer(app, v, QtCore.QPointF(30 + 12 * k, 30 + 4 * k),
+                  QtCore.Qt.MouseButton.LeftButton)
+    QtTest.QTest.mouseRelease(v, QtCore.Qt.MouseButton.LeftButton,
+                              QtCore.Qt.KeyboardModifier.NoModifier,
+                              QtCore.QPoint(114, 58))
+    check(v.opts["rotation"] != rot0 and w.mech.turns == t0,
+          "glisser hors de la manivelle tourne la vue, pas la machine")
+
+
+def tourner_manivelle_2d(app, w, vv):
+    from anticythere import layout as lay
+    t = vv.scene_transform(float(vv.width()), float(vv.height()))
+    ax, ay = lay.ARBORS["a"]
+    hx, hy = vv.crank_handle()
+    check(vv.hit_crank(t.map(QtCore.QPointF(hx, hy))),
+          "la poignee est saisissable dans le rendu vectoriel")
+
+    def point(ang):
+        if ang is None:
+            return t.map(QtCore.QPointF(hx, hy))
+        return t.map(QtCore.QPointF(ax + lay.CRANK_RADIUS * math.cos(ang),
+                                    ay + lay.CRANK_RADIUS * math.sin(ang)))
+    pan0 = QtCore.QPointF(vv._pan)
+    dt, o0, o1 = _quart_de_tour(app, w, vv, point)
+    _verifier_quart("vectoriel", dt, o0, o1)
+    check(vv._pan == pan0, "saisir la manivelle ne deplace pas le dessin")
+
+
+def textes_visibles(w):
+    """Tout ce que l'utilisateur peut lire : textes, titres, infobulles,
+    menus, listes, tableau, legende."""
+    out = []
+    for wd in w.findChildren(QtWidgets.QWidget):
+        if not wd.isVisibleTo(w) and not isinstance(wd, QtWidgets.QMenu):
+            continue
+        for attr in ("text", "title", "toolTip", "placeholderText",
+                     "windowTitle"):
+            f = getattr(wd, attr, None)
+            if callable(f):
+                try:
+                    t = f()
+                except TypeError:
+                    continue
+                if isinstance(t, str) and t.strip():
+                    out.append((f"{type(wd).__name__}.{attr}", t))
+        if isinstance(wd, QtWidgets.QComboBox):
+            out += [("QComboBox.item", wd.itemText(i)) for i in range(wd.count())]
+        if isinstance(wd, QtWidgets.QTextBrowser):
+            out.append(("QTextBrowser", wd.toPlainText()))
+    for act in w.findChildren(QtGui.QAction):
+        for t in (act.text(), act.toolTip()):
+            if t.strip():
+                out.append(("QAction", t))
+    for r in range(w.table.rowCount()):
+        for c in range(2):
+            it = w.table.item(r, c)
+            if it is not None and it.text().strip():
+                out.append(("table", it.text()))
+                if it.toolTip():
+                    out.append(("table.tip", it.toolTip()))
+    for c in range(w.table.columnCount()):
+        h = w.table.horizontalHeaderItem(c)
+        if h is not None:
+            out.append(("table.header", h.text()))
+    return out
+
+
+import re as _re  # noqa: E402
+
+_FR = _re.compile(r"[éèêàçùôîœ]|\b(le|la|les|des|une|du|et|pour|avec|dans|"
+                  r"sur|roue|roues|cadran|jours?|vue)\b", _re.I)
+_EN = _re.compile(r"\b(the|and|with|of|to|gear|gears|wheel|show|turn|"
+                  r"view|years?|days?)\b", _re.I)
+
+
+def semble_francais(t: str) -> bool:
+    # les noms grecs et propres (Thoth, Nemea...) n'ont ni accent ni article
+    # (« Freeth et al. » est une citation, identique dans les deux langues)
+    return bool(_FR.search(t.replace("Français", "").replace("et al.", "")))
+
+
+def semble_anglais(t: str) -> bool:
+    return bool(_EN.search(t.replace("English", "")))
 
 
 if __name__ == "__main__":

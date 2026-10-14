@@ -238,12 +238,89 @@ def test_i18n():
     import re
     used = set()
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for path in glob.glob(os.path.join(root, "anticythere", "*.py")):
+    sources = glob.glob(os.path.join(root, "anticythere", "*.py")) + [
+        os.path.join(root, "run.py")]
+    for path in sources:
         with open(path, encoding="utf-8") as fh:
-            used |= set(re.findall(r'tr\(\s*[\'"]([a-z0-9_.]+)[\'"]', fh.read()))
+            used |= set(re.findall(r'\b_?tr?\(\s*[\'"]([a-z0-9_.]+)[\'"]',
+                                   fh.read()))
     unknown = sorted(k for k in used if k not in i18n.T)
     check(not unknown, f"{len(used)} cles utilisees dans le code, toutes definies",
           str(unknown))
+
+    # Et l'inverse : aucun texte AFFICHE ecrit en dur. On parcourt l'arbre
+    # syntaxique de chaque module a la recherche des appels Qt qui affichent
+    # du texte (setText, setToolTip, QMessageBox, QLabel(...), drawText...)
+    # recevant une chaine litterale qui contient un mot. Un tel texte ne
+    # passe pas par tr() : il resterait dans une seule langue.
+    suspects = [f"{os.path.relpath(p, root)}:{ligne} {appel}({texte!r})"
+                for p in sources for ligne, appel, texte in textes_en_dur(p)]
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False,
+                                     encoding="utf-8") as fh:
+        fh.write("w.setText('Bonjour')\nw.setToolTip(tr('a.b', L))\n"
+                 "QtWidgets.QMessageBox.warning(self, 'Titre', f'{x} mots')\n")
+    temoin = list(textes_en_dur(fh.name))
+    os.unlink(fh.name)
+    check(len(temoin) == 3, "le scan attrape bien les textes en dur (temoin)",
+          str(temoin))
+    check(not suspects, "aucun texte affiche ecrit en dur (scan de "
+                        f"{len(sources)} modules)", "\n    ".join(suspects))
+
+
+#: appels Qt qui affichent le texte qu'on leur passe
+APPELS_AFFICHAGE = {
+    "setText", "setTitle", "setWindowTitle", "setToolTip", "setStatusTip",
+    "setWhatsThis", "setPlaceholderText", "showMessage", "addItem", "addItems",
+    "insertItem", "setItemText", "setInformativeText", "setDetailedText",
+    "setHorizontalHeaderLabels", "setVerticalHeaderLabels", "addAction",
+    "addMenu", "addTab", "setTabText", "information", "warning", "critical",
+    "question", "about", "setLabelText", "getSaveFileName", "getOpenFileName",
+    "getExistingDirectory", "drawText", "setHtml", "setPlainText", "addButton",
+    "setPrefix", "setSuffix", "setDescription", "QLabel", "QPushButton",
+    "QCheckBox", "QRadioButton", "QGroupBox", "QAction", "QMessageBox",
+    "QProgressDialog", "QToolButton", "QMenu", "_row",
+}
+#: textes admis tels quels : nom propre du programme, filtres et noms de
+#: fichiers proposes par defaut
+TEXTES_NEUTRES = {"Anticythere3D", "PNG (*.png)", "SVG (*.svg)", "PDF (*.pdf)",
+                  "CSV (*.csv)", "anticythere.png", "anticythere.svg",
+                  "anticythere.pdf", "anticythere.csv"}
+
+
+def textes_en_dur(path):
+    import ast
+    import re
+
+    def texte(n):
+        if isinstance(n, ast.Constant) and isinstance(n.value, str):
+            return n.value
+        if isinstance(n, ast.JoinedStr):
+            return "".join(v.value if isinstance(v, ast.Constant) else " "
+                           for v in n.values)
+        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Mod)):
+            return (texte(n.left) or "") + " " + (texte(n.right) or "")
+        return None
+
+    with open(path, encoding="utf-8") as fh:
+        arbre = ast.parse(fh.read())
+    for n in ast.walk(arbre):
+        if not isinstance(n, ast.Call):
+            continue
+        f = n.func
+        nom = (f.attr if isinstance(f, ast.Attribute)
+               else f.id if isinstance(f, ast.Name) else None)
+        if nom not in APPELS_AFFICHAGE:
+            continue
+        for arg in list(n.args) + [k.value for k in n.keywords]:
+            t = texte(arg)
+            if t is None or t.strip() in TEXTES_NEUTRES:
+                continue
+            # balises HTML, champs de format et entites ne sont pas des mots
+            nu = re.sub(r"<[^>]*>", " ", t)
+            nu = re.sub(r"\{[^}]*\}|%[sdf]|&\w+;", " ", nu)
+            if re.search(r"[A-Za-zÀ-ÿ]{2,}", nu):
+                yield n.lineno, nom, t[:50]
 
 
 def test_stl():
@@ -338,6 +415,148 @@ def test_frozen():
             del _sys.frozen
 
 
+def test_explode():
+    """L'éclatement écarte les étages LE LONG DES ARBRES, et rien d'autre.
+
+    Défaut signalé : « les engrenages se rentrent dedans et changent de
+    position ». L'ancienne formule ajoutait au pas des étages un décalage de
+    sens contraire : vers 57 % les 16 plans se confondaient, puis
+    s'inversaient. Ce test verrouille les quatre propriétés attendues.
+    """
+    print("\n[14] Eclatement des etages")
+    from itertools import combinations
+    valeurs = (0.0, 0.1, 0.25, 0.5, 0.75, 1.0)
+    porte = (0.0, 0.137, 0.5, 0.81)            # positions du porte-satellite
+
+    def tete(g):
+        return lay.MODULE * (TEETH[g] / 2.0 + 1.0)
+
+    # 1. aucune roue ne bouge dans son plan
+    bouge = []
+    for c in porte:
+        ref = {g: lay.gear_placement(g, 0.0, c)[:2] for g in lay.LEVELS}
+        for e in valeurs:
+            for g in lay.LEVELS:
+                x, y, _ = lay.gear_placement(g, e, c)
+                if math.hypot(x - ref[g][0], y - ref[g][1]) > 1e-9:
+                    bouge.append((g, e, c))
+    check(not bouge, f"positions dans le plan inchangees "
+                     f"({len(lay.LEVELS)} roues x {len(valeurs)} valeurs x "
+                     f"{len(porte)} angles du porte-satellite)", str(bouge[:5]))
+
+    # 2. les roues d'un meme plan restent dans le meme plan (engrenements)
+    meme_plan = all(
+        len({round(lay.gear_placement(g, e)[2], 9)
+             for g in lay.LEVELS if lay.LEVELS[g] == lv}) == 1
+        for lv in set(lay.LEVELS.values()) for e in valeurs)
+    check(meme_plan, "les roues qui s'engrenent restent dans un meme plan")
+
+    # 3. monotonie : l'ordre des etages ne change jamais, chaque roue avance
+    # (ou reste) quand on augmente le curseur, et les jeux grandissent
+    ordre = all(lay.level_z(lv, e) > lay.level_z(lv + 1, e)
+                for e in valeurs for lv in range(1, lay.N_LEVELS))
+    check(ordre, "l'ordre des 16 etages est conserve a toute valeur")
+    avance = all(lay.gear_placement(g, b)[2] >= lay.gear_placement(g, a)[2]
+                 for g in lay.LEVELS for a, b in zip(valeurs, valeurs[1:]))
+    check(avance, "chaque roue s'ecarte de facon monotone")
+    jeux = [lay.level_pitch(e) - lay.GEAR_THICKNESS for e in valeurs]
+    check(all(b > a for a, b in zip(jeux, jeux[1:])) and jeux[0] > 0,
+          f"jeu entre etages : {jeux[0]:.1f} mm monte, {jeux[-1]:.1f} mm eclate")
+
+    # 4. aucune collision : cylindres englobants (rayon de tete, epaisseur)
+    # des roues de plans differents, puis arbres contre roues
+    collisions, jeu_min = [], float("inf")
+    for e in valeurs:
+        for c in porte:
+            pos = {g: lay.gear_placement(g, e, c) for g in lay.LEVELS}
+            for a, b in combinations(lay.LEVELS, 2):
+                if lay.LEVELS[a] == lay.LEVELS[b]:
+                    continue
+                (xa, ya, za), (xb, yb, zb) = pos[a], pos[b]
+                if math.hypot(xa - xb, ya - yb) >= tete(a) + tete(b):
+                    continue                     # disques disjoints en plan
+                jeu = max(za, zb) - (min(za, zb) + lay.GEAR_THICKNESS)
+                jeu_min = min(jeu_min, jeu)
+                if jeu <= 0:
+                    collisions.append((a, b, e))
+    check(not collisions, f"aucune roue n'en penetre une autre "
+                          f"(jeu minimal {jeu_min:.2f} mm)", str(collisions[:5]))
+
+    traverse = []
+    for e in valeurs:
+        for arbre, (x, y) in lay.ARBORS.items():
+            z0, z1 = lay.arbor_extent(arbre, e)
+            for g in lay.LEVELS:
+                # une roue a bras laisse passer les arbres voisins : c'est la
+                # raison d'etre de ses bras (b1, e3, e4)
+                if lay.ARBOR_OF[g] == arbre or g in lay.SPOKED:
+                    continue
+                xg, yg, zg = lay.gear_placement(g, e)
+                if math.hypot(x - xg, y - yg) >= tete(g) + lay.ARBOR_RADIUS:
+                    continue
+                if z0 < zg + lay.GEAR_THICKNESS and zg < z1:
+                    traverse.append((arbre, g, e))
+    check(not traverse, "aucun arbre ne traverse une roue pleine d'un autre "
+                        "arbre, a toute valeur du curseur", str(traverse[:5]))
+
+    # les arbres s'allongent avec la pile
+    long0 = lay.arbor_span("e", 0.0)
+    long1 = lay.arbor_span("e", 1.0)
+    check((long1[1] - long1[0]) > (long0[1] - long0[0]) + 50,
+          f"l'arbre e s'allonge : {long0[1] - long0[0]:.0f} -> "
+          f"{long1[1] - long1[0]:.0f} mm")
+    check(lay.front_shift(0.0) == 0.0 and lay.front_shift(1.0) > 150,
+          f"la facade avance de {lay.front_shift(1.0):.0f} mm a 100 %")
+
+
+def test_palette():
+    """Couleurs des sous-ensembles : distinctes pour tout le monde."""
+    print("\n[15] Palette des sous-ensembles (CIEDE2000, daltonismes)")
+    from itertools import combinations
+    from anticythere import palette as pal
+    keys = list(lay.SUBSYSTEMS)
+    rgb = {k: lay.COLORS[k][:3] for k in keys}
+    # l'implementation CIEDE2000 elle-meme, sur les paires de Sharma (2005)
+    check(abs(pal.ciede2000((50, 2.6772, -79.7751), (50, 0, -82.7485))
+              - 2.0425) < 1e-3
+          and abs(pal.ciede2000((50, 2.5, 0), (73, 25, -18)) - 27.1492) < 1e-3,
+          "CIEDE2000 conforme aux donnees de test de Sharma et al.")
+
+    def pire(paires, vision):
+        return min((pal.delta_e(rgb[a], rgb[b], vision), a, b)
+                   for a, b in paires)
+
+    toutes = list(combinations(keys, 2))
+    d, a, b = pire(toutes, "normal")
+    check(d > 20, f"vision normale : dE00 >= {d:.1f} entre TOUS les "
+                  f"sous-ensembles (pire : {a}/{b})")
+    for vision in ("deutan", "protan"):
+        d, a, b = pire(lay.NEIGHBOURS, vision)
+        check(d > 15, f"{vision} : dE00 >= {d:.1f} entre sous-ensembles "
+                      f"voisins (pire : {a}/{b})")
+        d, a, b = pire(toutes, vision)
+        check(d > 10, f"{vision} : dE00 >= {d:.1f} entre tous (pire : {a}/{b})")
+    d, a, b = pire(toutes, "tritan")
+    check(d > 10, f"tritan : dE00 >= {d:.1f} entre tous (pire : {a}/{b})")
+    k = min(pal.contrast(rgb[x], lay.BACKGROUND) for x in keys)
+    check(k >= 3.0, f"contraste sur le fond parchemin >= {k:.2f}:1 (WCAG 3:1)")
+    check(set(lay.SUBSYSTEM_OF) == set(lay.LEVELS),
+          "chaque roue appartient a un sous-ensemble colore")
+
+
+def test_crank():
+    print("\n[16] Manivelle")
+    check(lay.CRANK_PER_TURN == -TEETH["b1"] / TEETH["a1"],
+          "un tour de b1 = 223/48 tours de manivelle, en sens contraire")
+    m = Mechanism()
+    a0 = m.gear_angles()["a1"]
+    m.turns += 1.0 / lay.CRANK_PER_TURN           # un tour de poignee
+    check(abs((m.gear_angles()["a1"] - a0) - 1.0) < 1e-12,
+          "faire tourner la poignee d'un tour fait tourner a1 d'un tour")
+    check(abs(m.days - (-48 / 223 * 365.24219)) < 1e-6,
+          f"un tour de poignee = {abs(m.days):.1f} jours")
+
+
 def main() -> int:
     print("=" * 70)
     print("  TESTS — Machine d'Anticythere")
@@ -345,7 +564,7 @@ def main() -> int:
     for fn in (test_ratios, test_carrier_and_anomalistic_month, test_pin_and_slot,
                test_dials, test_planets, test_astro, test_calibration,
                test_geometry, test_layout, test_i18n, test_stl, test_updater,
-               test_frozen):
+               test_frozen, test_explode, test_palette, test_crank):
         fn()
     print("\n" + "=" * 70)
     if FAILURES:

@@ -38,6 +38,14 @@ def _qcolor(rgba, alpha: float | None = None) -> QtGui.QColor:
 class VectorView(QtWidgets.QWidget):
     """Vue vectorielle, face avant ou arrière, avec zoom et déplacement."""
 
+    #: la poignée de la manivelle a été tournée de ce nombre de tours
+    #: (tours de la roue a1, sens trigonométrique) — même signal qu'en 3D
+    crank_turned = QtCore.pyqtSignal(float)
+
+    #: rayon de saisie autour de la poignée, en mm et au minimum en pixels
+    GRAB_MM = 7.0
+    GRAB_PX = 14.0
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(480, 400)
@@ -49,7 +57,10 @@ class VectorView(QtWidgets.QWidget):
         self.show_case = True
         self.show_plates = True
         self.show_labels = True
-        self.explode = 0.0             # sans effet en 2D, gardé pour l'interface
+        # L'éclatement se fait LE LONG DES ARBRES, c'est-à-dire dans l'axe de
+        # visée de ce rendu : il n'y a rien à y montrer. Le curseur est grisé
+        # par la fenêtre en mode vectoriel ; l'attribut reste pour l'interface.
+        self.explode = 0.0
         self._angles: dict[str, float] = {}
         self._carrier = 0.0
         self._pointers = (0.0, 0.0, 0.0, 0.0)
@@ -59,6 +70,7 @@ class VectorView(QtWidgets.QWidget):
         self._rot = 0.0                 # rotation du plan, en degrés
         self._drag = None
         self._drag_button = None
+        self._grab = None               # angle de la souris pendant la saisie
         self._outlines: dict[str, QtGui.QPolygonF] = {}
         self._build_outlines()
 
@@ -103,6 +115,61 @@ class VectorView(QtWidgets.QWidget):
         self.face = {"front": "front", "back": "back"}.get(mode, "all")
         self.update()
 
+    def set_explode(self, value: float):
+        """Sans effet visible ici (l'éclatement est dans l'axe de visée)."""
+        self.explode = max(0.0, min(1.0, float(value)))
+
+    # ------------------------------------------------------------ repère
+    def _span_scale(self, width: float, height: float, for_export: bool) -> float:
+        span = 345.0
+        return min(width / span, height / (span * 0.92)) * (
+            1.0 if for_export else self._zoom)
+
+    def scene_transform(self, width: float, height: float,
+                        for_export: bool = False) -> QtGui.QTransform:
+        """Repère scène (mm, y vers le haut) -> pixels. Sert au dessin ET à la
+        souris : la poignée saisie est exactement celle qui est dessinée."""
+        scale = self._span_scale(width, height, for_export)
+        t = QtGui.QTransform()
+        if not for_export:
+            t.translate(self._pan.x(), self._pan.y())
+        t.translate(width / 2.0, height / 2.0)
+        if self._rot:
+            t.rotate(self._rot)
+        t.scale(scale, -scale)                   # y vers le haut
+        t.translate(-60.0, 0.0)                  # recentre le nuage de roues
+        return t
+
+    def to_scene(self, pos: QtCore.QPointF) -> QtCore.QPointF:
+        inv, ok = self.scene_transform(float(self.width()),
+                                       float(self.height())).inverted()
+        return inv.map(pos) if ok else QtCore.QPointF(0.0, 0.0)
+
+    # --------------------------------------------------------- manivelle
+    def crank_visible(self) -> bool:
+        return self.face in ("front", "all")
+
+    def crank_handle(self) -> tuple[float, float]:
+        """Centre de la poignée dans le plan (mm)."""
+        ax, ay = lay.ARBORS["a"]
+        a = 2.0 * math.pi * self._angles.get("a1", 0.0)
+        return (ax + lay.CRANK_RADIUS * math.cos(a),
+                ay + lay.CRANK_RADIUS * math.sin(a))
+
+    def hit_crank(self, pos: QtCore.QPointF) -> bool:
+        if not self.crank_visible():
+            return False
+        p = self.to_scene(pos)
+        hx, hy = self.crank_handle()
+        scale = self._span_scale(float(self.width()), float(self.height()), False)
+        rayon = max(self.GRAB_MM, self.GRAB_PX / max(scale, 1e-6))
+        return math.hypot(p.x() - hx, p.y() - hy) <= rayon
+
+    def crank_angle_at(self, pos: QtCore.QPointF) -> float:
+        p = self.to_scene(pos)
+        ax, ay = lay.ARBORS["a"]
+        return math.atan2(p.y() - ay, p.x() - ax)
+
     # --------------------------------------------------------- interactions
     def wheelEvent(self, ev):
         if ev.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier:
@@ -111,11 +178,28 @@ class VectorView(QtWidgets.QWidget):
             self.zoom(1.0015 ** -ev.angleDelta().y())
 
     def mousePressEvent(self, ev):
+        if (ev.button() == QtCore.Qt.MouseButton.LeftButton
+                and self.hit_crank(ev.position())):
+            # saisie de la manivelle : la faire tourner fait avancer la machine
+            self._grab = self.crank_angle_at(ev.position())
+            self.setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
+            return
         self._drag = ev.position()
         self._drag_button = ev.button()
 
     def mouseMoveEvent(self, ev):
+        if self._grab is not None:
+            ang = self.crank_angle_at(ev.position())
+            d = (ang - self._grab + math.pi) % (2.0 * math.pi) - math.pi
+            self._grab = ang
+            if d:
+                self.crank_turned.emit(d / (2.0 * math.pi))
+            return
         if self._drag is None:
+            if self.hit_crank(ev.position()):
+                self.setCursor(QtCore.Qt.CursorShape.OpenHandCursor)
+            else:
+                self.unsetCursor()
             return
         d = ev.position() - self._drag
         if self._drag_button == QtCore.Qt.MouseButton.RightButton:
@@ -128,6 +212,9 @@ class VectorView(QtWidgets.QWidget):
     def mouseReleaseEvent(self, ev):
         self._drag = None
         self._drag_button = None
+        if self._grab is not None:
+            self._grab = None
+            self.unsetCursor()
 
     def mouseDoubleClickEvent(self, ev):
         self.reset_view()
@@ -173,17 +260,10 @@ class VectorView(QtWidgets.QWidget):
         painter.fillRect(QtCore.QRectF(0, 0, width, height),
                          _qcolor(lay.BACKGROUND))
 
-        span = 345.0
-        scale = min(width / span, height / (span * 0.92)) * (
-            1.0 if for_export else self._zoom)
+        scale = self._span_scale(width, height, for_export)
         painter.save()
-        if not for_export:
-            painter.translate(self._pan)
-        painter.translate(width / 2.0, height / 2.0)
-        if self._rot:
-            painter.rotate(self._rot)
-        painter.scale(scale, -scale)             # y vers le haut
-        painter.translate(-60.0, 0.0)            # recentre le nuage de roues
+        painter.setTransform(self.scene_transform(width, height, for_export),
+                             True)
 
         ink = _qcolor(lay.INK)
         ex, ey = lay.ARBORS["e"]
@@ -262,9 +342,15 @@ class VectorView(QtWidgets.QWidget):
             painter.drawEllipse(QtCore.QPointF(x, y), lay.ARBOR_RADIUS,
                                 lay.ARBOR_RADIUS)
 
-        # --- aiguilles -----------------------------------------------------
+        # --- aiguilles et manivelle ----------------------------------------
         self._draw_pointers(painter)
+        if self.crank_visible():
+            self._draw_crank(painter)
         painter.restore()
+
+        # --- légende des couleurs -------------------------------------------
+        if self.show_labels:
+            self._draw_legend(painter, width, height, for_export)
 
         # --- étiquettes (hors transformation : texte toujours à l'endroit) --
         if self.show_labels and not self._rot:
@@ -347,6 +433,51 @@ class VectorView(QtWidgets.QWidget):
                     3.2, 3.2)
         painter.restore()
 
+    def _draw_crank(self, painter: QtGui.QPainter):
+        """La manivelle vue de face : bras et poignée, que l'on saisit."""
+        ax, ay = lay.ARBORS["a"]
+        hx, hy = self.crank_handle()
+        wood = QtGui.QColor.fromRgbF(0.55, 0.42, 0.20, 1.0)
+        painter.save()
+        painter.setPen(QtGui.QPen(_qcolor(lay.INK), 0.5))
+        painter.setBrush(wood)
+        pen = QtGui.QPen(wood, 5.0)
+        pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.drawLine(QtCore.QPointF(ax, ay), QtCore.QPointF(hx, hy))
+        painter.setPen(QtGui.QPen(_qcolor(lay.INK), 0.6))
+        painter.drawEllipse(QtCore.QPointF(ax, ay), 4.0, 4.0)
+        painter.drawEllipse(QtCore.QPointF(hx, hy), 5.0, 5.0)
+        painter.restore()
+
+    def _draw_legend(self, painter, width, height, for_export):
+        """Légende des couleurs des sous-ensembles, dans la langue choisie."""
+        from .i18n import tr
+        keys = [k for k in ("input", "moon", "anomaly", "metonic",
+                            "callippic", "saros", "exeligmos")]
+        font = painter.font()
+        font.setPointSizeF(8.0)
+        painter.setFont(font)
+        fm = QtGui.QFontMetricsF(font)
+        line = fm.height() + 3.0
+        x0, y0 = 10.0, 10.0
+        w = max(fm.horizontalAdvance(tr(f"sub.{k}", self.dial_lang))
+                for k in keys) + 34.0
+        painter.save()
+        painter.setPen(QtGui.QPen(_qcolor(lay.INK, 0.35), 0.8))
+        painter.setBrush(_qcolor(lay.BACKGROUND, 0.88))
+        painter.drawRoundedRect(QtCore.QRectF(x0, y0, w, line * len(keys) + 8),
+                                4, 4)
+        for i, k in enumerate(keys):
+            y = y0 + 4 + i * line
+            painter.setPen(QtGui.QPen(_qcolor(lay.INK, 0.6), 0.6))
+            painter.setBrush(_qcolor(lay.COLORS[k]))
+            painter.drawRect(QtCore.QRectF(x0 + 6, y + 2, 16, line - 6))
+            painter.setPen(_qcolor(lay.INK))
+            painter.drawText(QtCore.QPointF(x0 + 28, y + fm.ascent() + 1),
+                             tr(f"sub.{k}", self.dial_lang))
+        painter.restore()
+
     def _draw_labels(self, painter, width, height, scale, for_export):
         from .kinematics import TEETH
 
@@ -381,8 +512,9 @@ class VectorView(QtWidgets.QWidget):
         gen.setFileName(path)
         gen.setSize(QtCore.QSize(int(width), int(height)))
         gen.setViewBox(QtCore.QRectF(0, 0, width, height))
-        gen.setTitle("Antikythera Mechanism")
-        gen.setDescription("Vector rendering — Anticythere3D")
+        from .i18n import tr
+        gen.setTitle(tr("app.title", self.dial_lang))
+        gen.setDescription(tr("svg.description", self.dial_lang))
         p = QtGui.QPainter()
         if not p.begin(gen):
             return False
