@@ -208,7 +208,7 @@ if HAS_GL:
 
             # plans de référence de la façade et du dos (machine montée)
             zf = lay.level_z(1) + 8.0
-            zb = lay.level_z(16) - 8.0
+            zb = lay.level_z(lay.N_LEVELS) - 8.0
             self.z_front = zf + 8.0          # face extérieure du coffret
             self.z_back = zb - 10.0
 
@@ -261,7 +261,7 @@ if HAS_GL:
 
             # platines : plaques de bois intérieures qui portent les arbres ;
             # celle de devant suit la façade
-            for k, z in enumerate((lay.level_z(1) + 4.0, lay.level_z(16) - 5.0)):
+            for k, z in enumerate((lay.level_z(1) + 4.0, lay.level_z(lay.N_LEVELS) - 5.0)):
                 plate = self._add(
                     geo.translate(geo.plate_mesh(lay.CASE_WIDTH - 24.0,
                                                  lay.CASE_HEIGHT - 24.0, z, 1.5),
@@ -419,9 +419,7 @@ if HAS_GL:
                 item.setTransform(m)
 
             for arbor, item in self._arbors.items():
-                x, y = lay.ARBORS[arbor]
-                if arbor in ("k", "K"):
-                    x, y = lay.orbit(x, y, carrier_turns)
+                x, y = lay.arbor_position(arbor, carrier_turns)
                 z0, z1 = lay.arbor_span(arbor, self.explode)
                 m = QtGui.QMatrix4x4()
                 m.translate(x, y, z0)

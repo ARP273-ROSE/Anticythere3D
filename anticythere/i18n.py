@@ -584,7 +584,12 @@ T: dict[str, dict[str, str]] = {
               "sous-ensemble ; la légende donne la couleur de chacun.</p>"
               "<p>Le panneau de droite donne en permanence ce que lisait le "
               "propriétaire de la machine, et, tout en bas, l'écart entre la "
-              "machine et le ciel réel calculé par éphémérides modernes.</p>",
+              "machine et le ciel réel calculé par éphémérides modernes.</p>"
+              "<p>Souris : molette = zoomer, clic droit glissé = déplacer (3D) "
+              "ou pivoter (vectoriel), double-clic = recentrer. Le manuel "
+              "illustré complet — installation sous Windows, macOS et Linux, "
+              "mise à jour, rapports d'incident — est livré avec le "
+              "programme : <b>docs/Manuel.pdf</b>.</p>",
         "en": "<p>The mechanism has <b>a single input</b>: the crank. Grab its "
               "handle with the mouse in the view and turn it, turn the round "
               "knob, or click “Animate”. One turn of the knob is one year; one "
@@ -597,7 +602,12 @@ T: dict[str, dict[str, str]] = {
               "subsystem; the legend gives each one's colour.</p>"
               "<p>The right-hand panel shows what the owner of the machine would "
               "have read, and at the bottom, the mechanism's error against modern "
-              "ephemerides.</p>"},
+              "ephemerides.</p>"
+              "<p>Mouse: wheel = zoom, right-drag = pan (3D) or roll (vector), "
+              "double-click = reset. The full illustrated guide — installing on "
+              "Windows, macOS and Linux, updates, incident reports — ships with "
+              "the program: <b>docs/Manuel.pdf</b> (French, with an English "
+              "quick guide at the end).</p>"},
     # ------------------------------------------- démarrage / start-up
     "boot.missing": {"fr": "Dépendances manquantes : {names}",
                      "en": "Missing dependencies: {names}"},

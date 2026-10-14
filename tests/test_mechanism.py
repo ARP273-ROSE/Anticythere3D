@@ -482,22 +482,68 @@ def test_explode():
     check(not collisions, f"aucune roue n'en penetre une autre "
                           f"(jeu minimal {jeu_min:.2f} mm)", str(collisions[:5]))
 
-    traverse = []
+    # 5. arbres contre roues, sur la longueur DESSINEE des arbres : leurs
+    # roues PLUS le prolongement jusqu'aux cadrans (n, g, o, i au dos, b en
+    # facade). Jusqu'en v1.3.0 seule la portee propre etait controlee, et le
+    # porte-satellite seulement a sa position de depart : l'arbre o traversait
+    # i1, et k1/k2 balayaient les arbres b et l en tournant.
+    #
+    # Aucune exception pour les roues a bras : elles TOURNENT, leurs bras
+    # balaieraient un arbre fixe. Seule exception : un arbre porte par la roue
+    # (k et K sur le porte-satellite e3) tourne avec elle.
+    porte_par = getattr(lay, "CARRIED_BY", {})
+    tours = [i / 72.0 for i in range(72)] + list(porte)
+    traverse, jeu_arbre = set(), float("inf")
     for e in valeurs:
-        for arbre, (x, y) in lay.ARBORS.items():
-            z0, z1 = lay.arbor_extent(arbre, e)
-            for g in lay.LEVELS:
-                # une roue a bras laisse passer les arbres voisins : c'est la
-                # raison d'etre de ses bras (b1, e3, e4)
-                if lay.ARBOR_OF[g] == arbre or g in lay.SPOKED:
-                    continue
-                xg, yg, zg = lay.gear_placement(g, e)
-                if math.hypot(x - xg, y - yg) >= tete(g) + lay.ARBOR_RADIUS:
-                    continue
-                if z0 < zg + lay.GEAR_THICKNESS and zg < z1:
-                    traverse.append((arbre, g, e))
-    check(not traverse, "aucun arbre ne traverse une roue pleine d'un autre "
-                        "arbre, a toute valeur du curseur", str(traverse[:5]))
+        for c in tours:
+            pos = {g: lay.gear_placement(g, e, c) for g in lay.LEVELS}
+            for arbre, (x, y) in lay.ARBORS.items():
+                if arbre in ("k", "K"):
+                    x, y = lay.orbit(x, y, c)
+                z0, z1 = lay.arbor_span(arbre, e)
+                for g in lay.LEVELS:
+                    if lay.ARBOR_OF[g] == arbre or porte_par.get(arbre) == g:
+                        continue
+                    xg, yg, zg = pos[g]
+                    if not (z0 < zg + lay.GEAR_THICKNESS and zg < z1):
+                        continue                 # pas a la meme hauteur
+                    marge = (math.hypot(x - xg, y - yg)
+                             - tete(g) - lay.ARBOR_RADIUS)
+                    jeu_arbre = min(jeu_arbre, marge)
+                    if marge < 0:
+                        traverse.add((arbre, g))
+    check(not traverse, f"aucun arbre, prolonge jusqu'a son cadran, ne "
+                        f"traverse une roue ({len(valeurs)} eclatements x "
+                        f"{len(tours)} angles du porte-satellite ; jeu "
+                        f"minimal {jeu_arbre:.1f} mm)", str(sorted(traverse)))
+
+    # 6. dans un meme plan, deux roues qui ne s'engrenent pas ne se
+    # recouvrent jamais, porte-satellite compris
+    recouvre = set()
+    for c in tours:
+        pos = {g: lay.gear_placement(g, 0.0, c) for g in lay.LEVELS}
+        for a, b in combinations(lay.LEVELS, 2):
+            if (lay.LEVELS[a] != lay.LEVELS[b]
+                    or lay.ARBOR_OF[a] == lay.ARBOR_OF[b]):
+                continue
+            d = math.hypot(pos[a][0] - pos[b][0], pos[a][1] - pos[b][1])
+            if abs(d - lay.MODULE * (TEETH[a] + TEETH[b]) / 2.0) < 0.01:
+                continue                         # elles s'engrenent
+            if d < tete(a) + tete(b):
+                recouvre.add((a, b))
+    check(not recouvre, "aucune roue ne recouvre une roue de son plan qui "
+                        "ne lui est pas destinee", str(sorted(recouvre)))
+
+    # 7. les tubes coaxiaux de l'arbre e (trois vitesses) s'emboitent :
+    # deux tubes ont des plages d'etages disjointes ou incluses l'une dans
+    # l'autre, sinon une roue serait montee a travers l'autre tube
+    tubes = [("e2", "e5"), ("e1", "e6"), ("e3", "e4")]
+    plages = [tuple(sorted((lay.LEVELS[a], lay.LEVELS[b]))) for a, b in tubes]
+    emboite = all(p[1] < q[0] or q[1] < p[0]
+                  or (p[0] <= q[0] and q[1] <= p[1])
+                  or (q[0] <= p[0] and p[1] <= q[1])
+                  for p, q in combinations(plages, 2))
+    check(emboite, f"tubes coaxiaux de e montables : {plages}")
 
     # les arbres s'allongent avec la pile
     long0 = lay.arbor_span("e", 0.0)

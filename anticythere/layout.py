@@ -47,7 +47,14 @@ ARBORS = {
     "l": (21.528, 46.234),
     "m": (91.220, 19.905),
     "n": (80.000, 52.000),      # PORTE L'AIGUILLE MÉTONIQUE
-    "o": (17.938, 12.624),
+    # o PORTE L'AIGUILLE CALLIPPIQUE. Il était en (17,938 ; 12,624), à
+    # 22,08 mm de i : prolongé jusqu'au cadran, il traversait i1 (60 dents,
+    # rayon de tête 31 mm). o est une feuille du train (il n'engrène que p2) :
+    # on l'a fait tourner sur son cercle d'entraxe autour de p (36 mm, exact)
+    # jusqu'à 165°, du côté de la spirale métonique, comme sur l'original où
+    # le cadran callippique est dans la moitié haute et celui de l'exeligmos
+    # dans la moitié basse (côté Saros). Il est désormais à 50,4 mm de i.
+    "o": (13.6707, 41.0575),
     "p": (48.444, 31.740),
 }
 
@@ -58,15 +65,24 @@ LEVELS = {
     "b2": 2, "c1": 2, "l1": 2,
     "c2": 3, "d1": 3,
     "d2": 4, "e2": 4,
-    "e5": 5, "k1": 5,
-    "e6": 6, "k2": 6,
-    "b3": 7, "e1": 7,
-    "l2": 8, "m1": 8,
-    "m2": 9, "n1": 9,
-    "n2": 10, "p1": 10,
-    "o1": 11, "p2": 11,
-    "e3": 12, "m3": 12,
-    "e4": 13, "f1": 13,
+    "b3": 5, "e1": 5,
+    "l2": 6, "m1": 6,
+    "m2": 7, "n1": 7,
+    # Le tenon-fente : k1/k2 tournent AVEC le porte-satellite e3, sur un
+    # cercle de 50 mm autour de e. Aux étages 5 et 6 (jusqu'en v1.3.0) ils
+    # balayaient les arbres b (étages 1 à 7) et l (2 à 8) — le test ne
+    # regardait que la position de départ du porte-satellite. Ils passent
+    # juste devant e3, qui les porte (arbres k et K prolongés jusqu'à lui,
+    # cf. CARRIED_BY). e6 devant e5 : le tube e1-e6 (étages 5 à 8) s'emboîte
+    # dans le tube e2-e5 (4 à 9), et e3-e4 (10-11) vient derrière.
+    "e6": 8, "k2": 8,
+    "e5": 9, "k1": 9,
+    "e3": 10, "m3": 10,
+    "e4": 11, "f1": 11,
+    # Train callippique derrière e3/e4 : l'arbre o, prolongé jusqu'à son
+    # cadran, ne traverse plus le porte-satellite (roue à bras qui TOURNE).
+    "n2": 12, "p1": 12,
+    "o1": 13, "p2": 13,
     "f2": 14, "g1": 14,
     "g2": 15, "h1": 15,
     "h2": 16, "i1": 16,
@@ -74,8 +90,18 @@ LEVELS = {
 
 N_LEVELS = 16
 
-#: roues à bras (évidées) — b1 est attestée avec 4 bras
+#: roues à bras (évidées) — b1 est attestée avec 4 bras. Une roue à bras
+#: TOURNE : ses bras balaieraient un arbre fixe qui la traverserait. Aucun
+#: arbre ne passe donc par une roue à bras, sauf ceux qu'elle porte.
 SPOKED = {"b1": 4, "e3": 4, "e4": 4}
+
+#: arbres portés par une roue (et non par la platine) : ils tournent avec
+#: elle. k et K (tenon-fente) sont montés sur le porte-satellite e3.
+CARRIED_BY = {"k": "e3", "K": "e3"}
+#: arbres prolongés jusqu'à la roue qui les porte. k (k1, étage 9) touche
+#: e3 (étage 10). K (k2, étage 8), décalé de 2,2 mm seulement, ne peut pas
+#: traverser k1 : il est tenu par une petite potence sur e3, non dessinée.
+MOUNTED_ON = {"k": "e3"}
 
 #: arbre porteur de chaque roue
 ARBOR_OF = {
@@ -194,6 +220,14 @@ def gear_placement(name: str, explode: float = 0.0,
     return x, y, z
 
 
+def arbor_position(arbor: str, carrier_turns: float = 0.0) -> tuple[float, float]:
+    """Position (x, y) d'un arbre ; k et K suivent le porte-satellite."""
+    x, y = ARBORS[arbor]
+    if arbor in CARRIED_BY:
+        x, y = orbit(x, y, carrier_turns)
+    return x, y
+
+
 def arbor_extent(arbor: str, explode: float = 0.0) -> tuple[float, float]:
     """Plage de hauteurs (z_min, z_max) occupée par un arbre."""
     zs = [level_z(LEVELS[g], explode) for g, a in ARBOR_OF.items() if a == arbor]
@@ -226,6 +260,9 @@ def arbor_span(arbor: str, explode: float = 0.0) -> tuple[float, float]:
     d'autant.
     """
     z0, z1 = arbor_extent(arbor, explode)
+    if arbor in MOUNTED_ON:                 # rejoint la roue qui le porte
+        zc = level_z(LEVELS[MOUNTED_ON[arbor]], explode)
+        z0, z1 = min(z0, zc), max(z1, zc + GEAR_THICKNESS)
     if arbor in BACK_DIAL_ARBORS:
         z0 = level_z(N_LEVELS) - 8.0 - 12.0
     if arbor in FRONT_DIAL_ARBORS:
@@ -313,8 +350,8 @@ MOON_HAND = FRONT_DIAL_SPAN / 2.0 * (_ZOD_IN_F + _ZOD_OUT_F) / 2.0   # 88,8 mm
 BACK_DIAL_SPAN = max(CASE_WIDTH, CASE_HEIGHT) + 12.0
 
 #: rayons des deux petits cadrans arrière, en mm. Ils sont portés par les
-#: arbres o et i, distants de seulement 22,08 mm : à 13 et 12 mm ils se
-#: chevauchaient de 2,92 mm. Calcul dans `anticythere_cadrans2.sage`, 3 mm de
+#: arbres o et i, alors distants de seulement 22,08 mm : à 13 et 12 mm ils se
+#: chevauchaient de 2,92 mm (depuis la v1.3.1, o est à 50,4 mm de i). Calcul dans `anticythere_cadrans2.sage`, 3 mm de
 #: jeu conservés entre les deux.
 CALLIPPIC_RADIUS = 9.9
 EXELIGMOS_RADIUS = 9.2

@@ -39,6 +39,15 @@
 \definecolor{medgray}{HTML}{7f8c8d}
 \definecolor{lightgray}{HTML}{ecf0f1}
 \definecolor{parchment}{HTML}{f5f0e6}
+% palette des sept trains : valeurs exactes de anticythere/layout.py (COLORS)
+\definecolor{trinput}{HTML}{DE6910}
+\definecolor{trmoon}{HTML}{0D59C1}
+\definecolor{tranomaly}{HTML}{8E1700}
+\definecolor{trmetonic}{HTML}{1D9594}
+\definecolor{trcallippic}{HTML}{786F4C}
+\definecolor{trsaros}{HTML}{841959}
+\definecolor{trexeligmos}{HTML}{B66CCD}
+\newcommand{\pastille}[1]{\textcolor{#1}{\rule[-0.6mm]{9mm}{3.4mm}}}
 
 \tcbuselibrary{skins, breakable}
 \newtcolorbox{astuce}[1][Astuce]{colback=lightgreen, colframe=accentgreen,
@@ -93,10 +102,91 @@ Rapports exacts d'après Freeth \textit{et al.}, \textit{Nature} 2006 \& 2008,
 % =====================================================================
 \section{Installation}
 
-\subsection{Le programme s'installe tout seul}
+\subsection{Le plus simple : le paquet prêt à l'emploi}
 
-Il suffit d'avoir \textbf{Python 3.10 ou plus récent}. Tout le reste — y compris
-la 3D — est installé par le programme lui-même au premier démarrage :
+Les paquets sont sur la page des versions du dépôt
+(\texttt{github.com/ARP273-ROSE/Anticythere3D/releases}). Chacun
+\textbf{embarque son propre Python} : rien d'autre à installer, et aucun mot
+de passe administrateur n'est demandé.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}p{2.6cm}p{4.4cm}X@{}}
+\toprule
+\rowcolor{lightblue}\textbf{Système} & \textbf{Fichier} & \textbf{Installation} \\
+\midrule
+\textbf{Windows} & \texttt{Anticythere3D-Setup.exe} & lancer l'installeur ;
+il installe dans le profil (\texttt{\%LOCALAPPDATA\%\textbackslash Programs}),
+sans droits d'administrateur \\
+\textbf{macOS} Apple Silicon / Intel & \texttt{…-macos-arm64.dmg}\newline
+\texttt{…-macos-x86\_64.dmg} & ouvrir l'image, glisser l'application dans
+\emph{Applications} \\
+\textbf{Linux} x86\_64 / ARM64 & \texttt{…-linux-x86\_64.tar.gz}\newline
+\texttt{…-linux-arm64.tar.gz} & décompresser, lancer \texttt{./installer.sh} :
+installation dans \texttt{\textasciitilde/.local/share}, entrée de menu,
+\textbf{sans sudo} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{attention}[Paquets non signés]
+\textbf{Windows} : « Windows a protégé votre ordinateur » — cliquer
+\emph{Informations complémentaires} puis \emph{Exécuter quand même}, une seule
+fois. \textbf{macOS} : la première fois, \emph{clic droit → Ouvrir} puis
+confirmer ; si macOS refuse encore, \emph{Réglages Système → Confidentialité
+et sécurité → Ouvrir quand même}.
+\end{attention}
+
+\subsection{La mise à jour se fait toute seule}
+
+Sur les trois systèmes, le programme installé regarde, quelques secondes après
+son ouverture, si une version plus récente est publiée. Si oui, il le propose ;
+on peut aussi le demander par \textsc{Aide → Rechercher une mise à jour…}. Seule
+une \textbf{petite archive de code} (8~Mo environ) est téléchargée, déballée à
+la place de l'ancienne, puis le programme redémarre. Lancé depuis les sources,
+il ne remplace rien : il propose la page de téléchargement (ou
+\texttt{git pull}).
+
+\begin{info}[Si la mise à jour échoue]
+Le message « des fichiers sont encore utilisés » signifie qu'une autre copie
+du programme tourne. Fermez-la (ou redémarrez l'ordinateur) et laissez le
+programme proposer à nouveau la mise à jour : la version en place reste
+intacte.
+\end{info}
+
+\subsection{Les rapports d'incident}
+
+S'il plante, se fige ou refuse de démarrer, le programme peut le signaler
+lui-même à celui qui le maintient. \textbf{Rien ne part sans accord} : la
+question est posée au premier lancement, et la case \textsc{Aide → Envoyer les
+rapports d'incident automatiquement} permet de changer d'avis.
+\textsc{Aide → Signaler un problème…} envoie un signalement écrit, avec vos
+mots. Rien d'autre ne quitte la machine : ni noms de fichiers, ni nom
+d'utilisateur. Sans réseau, le rapport attend le démarrage suivant.
+
+\subsection{Où vivent vos données}
+
+Réglages, rapports et journal ne sont \textbf{jamais} rangés dans le dossier du
+programme, puisque la mise à jour le remplace en entier :
+
+\begin{center}
+\begin{tabularx}{0.9\textwidth}{@{}lX@{}}
+\toprule
+\rowcolor{lightblue}\textbf{Système} & \textbf{Dossier des données} \\
+\midrule
+Windows & \texttt{\%LOCALAPPDATA\%\textbackslash Anticythere3D} \\
+macOS & \texttt{\textasciitilde/Library/Application Support/Anticythere3D} \\
+Linux & \texttt{\textasciitilde/.local/share/Anticythere3D} (ou
+\texttt{\$XDG\_DATA\_HOME}) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Depuis les sources}
+
+Il suffit d'avoir \textbf{Python 3.10 ou plus récent} (sous Windows, un
+double-clic sur \texttt{launch.bat} fait tout). Le reste — y compris la 3D —
+est installé par le programme lui-même au premier démarrage :
 
 \begin{center}
 \begin{tcolorbox}[colback=lightgray, colframe=darkgray, width=0.85\textwidth,
@@ -105,30 +195,13 @@ python run.py
 \end{tcolorbox}
 \end{center}
 
-Au premier lancement, le programme détecte ce qui manque, l'annonce, et
-l'installe avec \texttt{pip} :
-
-\begin{center}
-\begin{tcolorbox}[colback=parchment, colframe=medgray, width=0.9\textwidth,
-  arc=2mm, fontupper=\ttfamily\small]
-{[}Anticythere3D{]} Dépendances manquantes : PyQt6, numpy, pyqtgraph, OpenGL\\
-{[}Anticythere3D{]} Installation automatique en cours…
-\end{tcolorbox}
-\end{center}
-
 \begin{astuce}[Ce qu'il installe, et où]
 Quatre paquets : \texttt{PyQt6} (l'interface), \texttt{numpy} (la géométrie),
 \texttt{pyqtgraph} et \texttt{PyOpenGL} (la vue 3D). Hors environnement
 virtuel, l'installation se fait avec \texttt{-{}-user} : \textbf{rien n'est
-écrit dans les paquets système}. Si tu préfères un environnement isolé :
-\begin{center}\ttfamily
-python -m venv .venv\\
-.venv$\backslash$Scripts$\backslash$activate \ \ (Windows) \ \ ou \ \ source .venv/bin/activate\\
-python run.py
-\end{center}
+écrit dans les paquets système}. Sous Linux, s'il manque à Qt des
+bibliothèques système, le programme affiche la commande exacte à lancer.
 \end{astuce}
-
-\subsection{Vérifier sans rien installer}
 
 \begin{center}
 \begin{tabularx}{0.95\textwidth}{@{}lX@{}}
@@ -137,20 +210,18 @@ python run.py
 \midrule
 \texttt{python run.py -{}-check} & liste ce qui manque, n'installe rien, sort \\
 \texttt{python run.py -{}-no-install} & démarre sans rien installer \\
-\texttt{python run.py -{}-lang en} & interface en anglais \\
+\texttt{python run.py -{}-lang en} & interface en anglais (défaut : langue du système) \\
 \texttt{python run.py -{}-vector} & démarre en rendu vectoriel \\
 \texttt{python run.py -{}-samples 16} & antialiasing plus poussé (défaut : 8) \\
 \bottomrule
 \end{tabularx}
 \end{center}
 
-\begin{attention}[Si la 3D ne s'installe pas]
-Sur certaines machines sans pilote OpenGL (serveur, machine virtuelle,
-bureau à distance), \texttt{pyqtgraph} ou \texttt{PyOpenGL} peuvent
-s'installer sans que la 3D fonctionne. \textbf{Le programme ne plante pas} :
-il bascule tout seul en \emph{rendu vectoriel}, qui montre les mêmes rotations,
-sans aucune dépendance graphique. Rien n'est perdu — au contraire, ce mode
-exporte en SVG et en PDF.
+\begin{attention}[Si la 3D ne démarre pas]
+Sur une machine sans pilote OpenGL (serveur, machine virtuelle, bureau à
+distance), \textbf{le programme ne plante pas} : il bascule tout seul en
+\emph{rendu vectoriel}, qui montre les mêmes rotations sans aucune dépendance
+graphique — et exporte en SVG et en PDF.
 \end{attention}
 
 % =====================================================================
@@ -160,8 +231,10 @@ exporte en SVG et en PDF.
   \item Lance \texttt{python run.py}. La machine apparaît \textbf{fermée},
         comme on la trouverait sur une étagère : coffret de bois, façade de
         bronze gravée, aiguilles, manivelle sur le côté.
-  \item Tourne le \textbf{bouton rond} en haut à gauche : c'est la manivelle.
-        Un tour complet vaut une année.
+  \item Fais avancer la machine : \textbf{saisis la poignée de la manivelle}
+        à la souris, sur le flanc, et fais-la tourner (le curseur devient une
+        main) — ou tourne le \textbf{bouton rond} en haut à gauche, dont un
+        tour complet vaut une année.
   \item Décoche \textbf{Enveloppe} : le coffret disparaît et les 33 roues
         apparaissent, en train de tourner.
   \item Regarde le panneau de droite : il donne en permanence ce que lisait le
@@ -184,7 +257,9 @@ les deux grandes roues à bras (b1 devant, e3 derrière).}
 \toprule
 \rowcolor{lightblue}\textbf{Élément} & \textbf{Rôle} \\
 \midrule
-Bouton rond & la manivelle : la \textbf{seule} entrée de la machine \\
+Poignée de la manivelle & dans la vue : la \textbf{seule} entrée de la
+machine, saisie à la souris (voir ci-dessous) \\
+Bouton rond & la même manivelle, démultipliée : un tour = une année \\
 Animer / Pause & fait tourner la manivelle en continu \\
 Vitesse & nombre de jours simulés par seconde \\
 +1 jour / +1 lunaison / +1 an & avance d'un pas exact \\
@@ -202,6 +277,42 @@ la manivelle. C'est exactement ce que fait le programme : il n'y a aucune
 formule d'affichage, seulement des fractions de nombres de dents.
 \end{info}
 
+\subsection{Tourner la manivelle à la souris}
+
+\begin{center}
+\includegraphics[width=\textwidth]{manivelle_souris.png}\\[2mm]
+{\small\color{medgray} Avant et après un demi-tour de poignée : la date passe
+du 14/10 au 22/11/2026 (39 jours) et la Lune a fait plus d'un tour de zodiaque.}
+\end{center}
+
+\begin{enumerate}[leftmargin=7mm, itemsep=1mm]
+  \item Amène la souris sur la \textbf{poignée} (ou le bras) de la manivelle,
+        sur le flanc droit du coffret : le curseur devient une \textbf{main
+        ouverte}.
+  \item Clique et garde le bouton enfoncé : la main se ferme, la poignée est
+        saisie.
+  \item Décris un cercle autour de l'axe de la manivelle : la machine avance
+        dans un sens, recule dans l'autre. Tous les cadrans suivent, et le
+        bouton rond aussi.
+\end{enumerate}
+
+\begin{info}[Combien vaut un tour de poignée ?]
+La manivelle porte la roue $a_1$ (48 dents), qui engrène la grande roue $b_1$
+(223 dents). Un tour de poignée fait donc tourner $b_1$ de $48/223$ de tour —
+et $b_1$ fait un tour par an :
+\[
+  1~\text{tour de poignée} = \frac{48}{223}~\text{année}
+  \approx \frac{48}{223}\times 365{,}25 \approx 78{,}6~\text{jours},
+\]
+en sens contraire de $b_1$, comme deux roues qui s'engrènent. Il faut donc
+$223/48 \approx 4{,}65$ tours de poignée pour une année.
+\end{info}
+
+Le geste est le même en \textbf{rendu vectoriel}, où la manivelle est dessinée
+sur la roue $a_1$. Hors de la poignée, glisser fait toujours tourner la vue :
+on ne fait pas avancer la machine par mégarde. La molette tournée
+\emph{au-dessus du bouton rond} fait aussi avancer la machine.
+
 \subsection{Navigation : zoomer, tourner, retourner}
 
 \begin{center}
@@ -209,8 +320,10 @@ formule d'affichage, seulement des fractions de nombres de dents.
 \toprule
 \rowcolor{lightblue}\textbf{Geste} & \textbf{Effet} \\
 \midrule
-Glisser à la souris & faire tourner l'objet \\
-Molette & zoomer / dézoomer \\
+Glisser sur la poignée & tourner la manivelle (curseur en main) \\
+Glisser ailleurs & faire tourner l'objet \\
+Molette & zoomer vers l'avant, dézoomer vers l'arrière (zoom borné : on ne
+traverse pas la machine) \\
 Clic droit et glisser & déplacer (3D) ou pivoter (vectoriel) \\
 Double-clic & recentrer \\
 $\leftarrow\ \uparrow\ \rightarrow\ \downarrow$ & tourner au clavier \\
@@ -238,10 +351,11 @@ visionneuses 3D, qui butent à 90° d'élévation.
 \toprule
 \rowcolor{lightblue}\textbf{Réglage} & \textbf{Effet} \\
 \midrule
-\textbf{Enveloppe} & montre ou retire le coffret, la façade et la manivelle \\
+\textbf{Enveloppe} & montre ou retire le coffret et la façade (la manivelle
+reste, pour qu'on puisse la saisir) \\
 Platines & les deux plaques intérieures qui portent les arbres \\
 Noms des roues & étiquette chaque roue avec son nombre de dents \\
-Éclatement des étages & écarte les 16 plans d'engrènement \\
+Éclatement des étages & écarte les 16 plans d'engrènement le long des arbres \\
 \textbf{Rendu} & 3D temps réel, ou vectoriel exportable \\
 \textbf{Profil des dents} & triangulaire (antique) ou développante (moderne) \\
 Mettre en évidence & n'éclaire qu'un sous-ensemble, éteint les autres \\
@@ -258,12 +372,88 @@ seul profil qui donne un rapport constant à tout instant. Basculer entre les
 deux dans le programme montre la différence de forme.
 \end{info}
 
+\subsection{L'éclatement des étages}
+
+\begin{center}
+\includegraphics[width=\textwidth]{vue_eclatee.png}\\[2mm]
+{\small\color{medgray} Éclatement à 0, 50 et 100 \% : la pile s'étire le long
+des arbres, aucune roue ne quitte son plan.}
+\end{center}
+
+Les 33 roues sont rangées sur \textbf{16 étages} : deux roues d'un même étage
+sont dans le même plan et s'engrènent. Le curseur \textsf{Éclatement des
+étages} fait passer l'écart entre deux étages de 3,4~mm (machine montée) à
+15,4~mm :
+\begin{itemize}[leftmargin=6mm, itemsep=0.5mm]
+  \item le \textbf{fond} reste en place et la pile s'étire vers l'avant ; la
+        façade (cadrans, Cosmos, aiguilles, manivelle) avance avec le premier
+        étage, et les flancs du coffret s'allongent ;
+  \item \textbf{aucune roue ne bouge dans son plan} ; celles qui s'engrènent
+        restent face à face, et l'ordre des étages ne change jamais ;
+  \item les \textbf{arbres s'allongent} avec la pile : aucune roue ne flotte ;
+  \item en rendu vectoriel le curseur est grisé : l'éclatement s'y ferait dans
+        l'axe de visée, il n'y aurait rien à voir.
+\end{itemize}
+
+\begin{info}[Aucune pièce n'en traverse une autre]
+La suite de tests vérifie, à six positions du curseur et pour 76 angles du
+porte-satellite $e_3$, qu'aucune roue n'en pénètre une autre et qu'aucun
+arbre, \textbf{prolongé jusqu'à son cadran}, ne traverse une roue. Ce contrôle
+a fait corriger deux défauts en version 1.3.1 :
+\begin{itemize}[leftmargin=5mm, itemsep=0.5mm]
+  \item l'arbre $o$ de l'aiguille callippique passait au travers de la roue
+        $i_1$ (60 dents) de l'exeligmos, à 22~mm de lui : il a été déplacé
+        sur son cercle d'entraxe autour de $p$ (entraxe exact conservé), du
+        côté de la spirale métonique, et le cadran callippique avec lui ;
+  \item les roues $k_1$, $k_2$ du tenon-fente, qui tournent avec $e_3$,
+        balayaient les arbres $b$ et $l$ : elles sont maintenant juste devant
+        $e_3$, qui les porte.
+\end{itemize}
+\end{info}
+
+\begin{center}
+\includegraphics[width=0.62\textwidth]{arbre_o_callippique.png}\\[1mm]
+{\small\color{medgray} Le train callippique mis en évidence (machine éclatée,
+vue de trois quarts arrière) : l'arbre $o$ descend jusqu'au cadran sans
+traverser aucune roue.}
+\end{center}
+
+\subsection{Les couleurs des sept trains}
+
+Chaque sous-ensemble a sa couleur, dans la vue 3D, dans le rendu vectoriel et
+ses exports, dans l'encadré \textsf{Couleurs des trains} du panneau de gauche et dans le manuel
+intégré (\textsc{Aide → Manuel d'utilisation}, touche \texttt{F1}) :
+
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lllX@{}}
+\toprule
+\rowcolor{lightblue}\textbf{Couleur} & \textbf{Code} & \textbf{Train (légende)} & \textbf{Roues} \\
+\midrule
+\pastille{trinput} orange & \texttt{\#DE6910} & Entrée et roue motrice & $a_1$, $b_1$, $b_2$ \\
+\pastille{trmoon} bleu & \texttt{\#0D59C1} & Train de la Lune & $b_3$, $c_1$, $c_2$, $d_1$, $d_2$, $e_1$, $e_2$, $e_5$, $e_6$ \\
+\pastille{tranomaly} rouge sang & \texttt{\#8E1700} & Anomalie lunaire (tenon et fente) & $e_3$, $e_4$, $k_1$, $k_2$ \\
+\pastille{trmetonic} bleu-vert & \texttt{\#1D9594} & Cycle métonique & $l_1$, $l_2$, $m_1$, $m_2$, $n_1$ \\
+\pastille{trcallippic} kaki & \texttt{\#786F4C} & Cycle callippique & $n_2$, $p_1$, $p_2$, $o_1$ \\
+\pastille{trsaros} framboise & \texttt{\#841959} & Saros (éclipses) & $m_3$, $f_1$, $f_2$, $g_1$ \\
+\pastille{trexeligmos} lilas & \texttt{\#B66CCD} & Exeligmos & $g_2$, $h_1$, $h_2$, $i_1$ \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{info}[Une palette calculée, pas choisie à l'œil]
+Les sept teintes sortent d'une optimisation (\texttt{anticythere/palette.py}) :
+écart de couleur CIEDE2000 d'au moins 27,7 entre toutes en vision normale ;
+en deutéranopie et protanopie simulées, au moins 19 entre trains qui se
+touchent et 12 entre tous ; contraste d'au moins 3:1 sur le fond parchemin.
+Les tests vérifient ces seuils à chaque version.
+\end{info}
+
 \subsection{Le rendu vectoriel}
 
 \begin{center}
-\includegraphics[width=0.92\textwidth]{vue_vectorielle.png}\\[2mm]
-{\small\color{medgray} Rendu vectoriel : chaque dent est une courbe, pas un
-pixel. Zoom, déplacement, et export sans perte.}
+\includegraphics[width=0.78\textwidth]{vectoriel_legende.png}\\[2mm]
+{\small\color{medgray} Rendu vectoriel, avec sa légende : chaque dent est une
+courbe, pas un pixel. Zoom, déplacement, et export sans perte.}
 \end{center}
 
 Ce mode dessine les \textbf{dentures réelles} en courbes. Il sert à trois
@@ -443,6 +633,14 @@ On ne voit que les grandes roues & normal : b1 et e3 recouvrent les petites.
 Utiliser \textbf{Éclatement} ou \textbf{Mettre en évidence} \\
 Le pointeur ne revient pas pile & vérifier avec les tests :
 \texttt{python tests/test\_mechanism.py} \\
+La manivelle ne se saisit pas & viser la poignée elle-même : le curseur doit
+devenir une main ; ailleurs, glisser tourne la vue \\
+« Windows a protégé votre ordinateur » & installeur non signé :
+\emph{Informations complémentaires} → \emph{Exécuter quand même} \\
+macOS refuse d'ouvrir l'application & clic droit → Ouvrir, ou Réglages
+Système → Confidentialité et sécurité → Ouvrir quand même \\
+La mise à jour échoue & fermer l'autre copie du programme, puis la redemander
+(\textsc{Aide → Rechercher une mise à jour…}) \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -463,9 +661,18 @@ et 223 cases), le principe de la manivelle unique, les quatre bras de $b_1$.
         pas modélisées en 3D : ce sont des reconstitutions, pas des relevés.
   \item L'\textbf{implantation des arbres} est calculée par optimisation sous
         contraintes ; elle respecte les 17 entraxes exacts, mais ce n'est pas
-        la disposition de l'original, qui reste partiellement inconnue.
-  \item Les \textbf{gravures} des cadrans (noms de mois, glyphes d'éclipses)
-        ne sont pas dessinées ; la prédiction d'éclipse, elle, est calculée.
+        la disposition de l'original, qui reste partiellement inconnue (l'arbre
+        $o$ a été replacé à la main en 1.3.1, sur son cercle d'entraxe).
+  \item Les \textbf{glyphes d'éclipse} du Saros sont calculés (critère de
+        syzygie proche d'un n\oe ud), pas copiés de la plaque, connue
+        seulement par fragments.
+  \item L'\textbf{ordre des étages} est celui du projet, pas un relevé :
+        $k_1$, $k_2$ sont portés par $e_3$ comme dans les reconstitutions
+        de Freeth \textit{et al.}, mais l'empilement des autres trains est
+        choisi pour qu'aucun arbre ne traverse une roue. Les petits cadrans
+        callippique et de l'exeligmos sont du côté de leur spirale (métonique
+        en haut, Saros en bas) comme sur l'original, mais à côté d'elle et non
+        à l'intérieur.
   \item Le \textbf{boîtier} suit les proportions du mécanisme reconstitué, non
         les 34 $\times$ 18 $\times$ 9 cm de l'original.
 \end{itemize}
@@ -477,27 +684,83 @@ et 223 cases), le principe de la manivelle unique, les quatre bras de $b_1$.
 \addcontentsline{toc}{section}{English — quick guide}
 
 \begin{english}[Installation]
-You only need \textbf{Python 3.10+}. Run \texttt{python run.py}: the program
-detects what is missing and installs it itself, \textbf{3D included}
-(PyQt6, numpy, pyqtgraph, PyOpenGL). Outside a virtual environment it installs
-with \texttt{-{}-user}, so nothing is written into system packages.
-Use \texttt{-{}-check} to inspect without installing, \texttt{-{}-no-install}
-to skip it, \texttt{-{}-lang en} for the English interface.
+Ready-made packages are on the repository's releases page, each with its own
+Python, no administrator password: \textbf{Windows}
+\texttt{Anticythere3D-Setup.exe}; \textbf{macOS} \texttt{…-macos-arm64.dmg}
+(Apple Silicon) or \texttt{…-macos-x86\_64.dmg} (Intel), drag the app into
+\emph{Applications}; \textbf{Linux} \texttt{…-linux-x86\_64.tar.gz} or
+\texttt{…-linux-arm64.tar.gz}, unpack and run \texttt{./installer.sh}
+(installs into \texttt{\textasciitilde/.local/share}, menu entry, no sudo).
+The packages are unsigned: on Windows choose \emph{More info → Run anyway}; on
+macOS right-click → Open, or \emph{System Settings → Privacy \& Security →
+Open Anyway}. From source you only need \textbf{Python 3.10+}:
+\texttt{python run.py} installs what is missing, \textbf{3D included}.
 \end{english}
 
-\begin{english}[Getting started]
-The machine starts \textbf{closed}: wooden case, engraved bronze front, Sun and
-Moon hands, phase ball, side crank. Turn the round knob — one full turn is one
-year. Untick \textbf{Case} to remove the housing and watch all 33 gears turn.
+\begin{english}[Updates, incident reports, your data]
+The installed program checks for a newer release a few seconds after it
+opens (or \textsc{Help → Check for updates…}); only a small code archive is
+downloaded, unpacked in place, and the program restarts. If it crashes,
+freezes or fails to start it can tell its maintainer by itself —
+\textbf{only with your consent}, asked at first launch and changeable in the
+Help menu; \textsc{Help → Report a problem…} sends a written report. No file
+names, no user name. Settings and reports live outside the program folder,
+so an update never touches them: \texttt{\%LOCALAPPDATA\%\textbackslash
+Anticythere3D}, \texttt{\textasciitilde/Library/Application
+Support/Anticythere3D}, \texttt{\textasciitilde/.local/share/Anticythere3D}.
+\end{english}
+
+\begin{english}[Getting started: the crank]
+The machine starts \textbf{closed}. Move the mouse onto the \textbf{crank
+handle} on the right-hand side: the cursor becomes an open hand. Press, and
+turn it around its axis: the mechanism moves forwards or backwards and every
+dial follows. One turn of the handle is $48/223$ of a year,
+\textbf{78.6 days} (wheel $a_1$, 48 teeth, drives $b_1$, 223 teeth, which turns
+once a year, in the opposite direction). It works the same way in vector
+mode. The round knob is the same crank geared down: one turn = one year.
+Untick \textbf{Case} to see all 33 gears turn.
 \end{english}
 
 \begin{english}[Navigation]
-Drag to rotate, wheel to zoom, right-drag to pan (3D) or roll (vector),
-double-click to reset. Keyboard: arrows rotate, Page $\uparrow\downarrow$ roll,
-\texttt{+}/\texttt{-} zoom, \texttt{R} reset, \texttt{Space} animate,
-\texttt{F}/\texttt{B}/\texttt{I} front/back/isometric. The camera uses
-quaternions: \textbf{rotation is unconstrained}, nothing locks at the poles,
-and the machine can be turned completely upside down.
+Drag the handle to turn the crank, drag elsewhere to rotate, wheel to zoom
+(bounded), right-drag to pan (3D) or roll (vector), double-click to reset;
+the wheel over the round knob turns the crank. Keyboard: arrows rotate,
+Page $\uparrow\downarrow$ roll, \texttt{+}/\texttt{-} zoom, \texttt{R} reset,
+\texttt{Space} animate, \texttt{F}/\texttt{B}/\texttt{I} front/back/isometric.
+The camera uses quaternions: \textbf{rotation is unconstrained}.
+\end{english}
+
+\begin{english}[Level explosion]
+The 33 gears sit on 16 levels. The \textbf{Level explosion} slider widens the
+gap between levels from 3.4 to 15.4 mm: the back stays put, the stack
+stretches forwards along the arbors, the front (dials, Cosmos, hands, crank)
+moves with level 1, arbors lengthen. No gear moves within its plane and
+meshing gears stay face to face. The tests check, at six slider positions
+and 76 angles of the carrier $e_3$, that no gear enters another and that no
+arbor, \textbf{extended to its dial}, passes through a gear. Version 1.3.1
+fixed two such faults: arbor $o$ (Callippic hand) went through wheel $i_1$ —
+it now sits elsewhere on its pitch circle around $p$, towards the Metonic
+spiral; and $k_1$, $k_2$, turning with $e_3$, swept through arbors $b$ and
+$l$ — they now sit just in front of $e_3$, which carries them.
+\end{english}
+
+\begin{english}[Gear train colours]
+\begin{tabular}{@{}lll@{}}
+\pastille{trinput} orange \texttt{\#DE6910} & Input and main wheel & $a_1$, $b_1$, $b_2$ \\
+\pastille{trmoon} blue \texttt{\#0D59C1} & Moon train & $b_3$, $c$, $d$, $e_1$, $e_2$, $e_5$, $e_6$ \\
+\pastille{tranomaly} blood red \texttt{\#8E1700} & Lunar anomaly (pin and slot) & $e_3$, $e_4$, $k_1$, $k_2$ \\
+\pastille{trmetonic} teal \texttt{\#1D9594} & Metonic cycle & $l_1$, $l_2$, $m_1$, $m_2$, $n_1$ \\
+\pastille{trcallippic} khaki \texttt{\#786F4C} & Callippic cycle & $n_2$, $p_1$, $p_2$, $o_1$ \\
+\pastille{trsaros} raspberry \texttt{\#841959} & Saros (eclipses) & $m_3$, $f_1$, $f_2$, $g_1$ \\
+\pastille{trexeligmos} lilac \texttt{\#B66CCD} & Exeligmos & $g_2$, $h_1$, $h_2$, $i_1$ \\
+\end{tabular}
+
+\smallskip
+Computed, not picked by eye: CIEDE2000 $\geq 27.7$ between all of them,
+$\geq 19$ between touching trains under simulated deuteranopia and
+protanopia, contrast $\geq 3{:}1$ on the parchment background. The legend
+appears in the left-hand panel (\textsf{Gear train colours}), in the vector view and its exports, and in the
+built-in manual (\texttt{F1}).
 \end{english}
 
 \begin{english}[Vector mode]

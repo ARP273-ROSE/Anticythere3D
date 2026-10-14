@@ -38,7 +38,7 @@ administrateur.
 | Système | Fichier | Installation |
 |---|---|---|
 | **Windows** | [`Anticythere3D-Setup.exe`](https://github.com/ARP273-ROSE/Anticythere3D/releases/latest/download/Anticythere3D-Setup.exe) (lien permanent) | Lancer l'installeur. « Windows a protégé votre ordinateur » (installeur non signé) : *Informations complémentaires* puis *Exécuter quand même*, une seule fois. |
-| **macOS** Apple Silicon / Intel | `Anticythere3D-<version>-macos-arm64.dmg` / `-macos-x86_64.dmg` | Ouvrir l'image, glisser l'application dans *Applications*. Non signée : la première fois, **clic droit → Ouvrir**, puis confirmer. |
+| **macOS** Apple Silicon / Intel | `Anticythere3D-<version>-macos-arm64.dmg` / `-macos-x86_64.dmg` | Ouvrir l'image, glisser l'application dans *Applications*. Non signée : la première fois, **clic droit → Ouvrir**, puis confirmer (si macOS refuse encore : *Réglages Système → Confidentialité et sécurité → Ouvrir quand même*). |
 | **Linux** x86_64 / ARM64 | `Anticythere3D-<version>-linux-x86_64.tar.gz` / `-linux-arm64.tar.gz` | Décompresser, lancer `./installer.sh` : installation dans `~/.local/share`, entrée de menu, **sans sudo**. |
 
 Ensuite, le programme se met à jour **tout seul**, sur les trois systèmes : il
@@ -97,7 +97,7 @@ rien à faire : les binaires PyQt6 embarquent tout.
 **Si OpenGL n'est pas disponible**, l'application bascule automatiquement sur le
 rendu vectoriel, qui montre les mêmes rotations — elle ne plante pas.
 
-📖 **Manuel complet illustré** : [`docs/Manuel.pdf`](docs/Manuel.pdf) (9 pages, FR + EN).
+📖 **Manuel complet illustré** : [`docs/Manuel.pdf`](docs/Manuel.pdf) (15 pages, FR + guide EN) : installation sur les trois systèmes, mise à jour, rapports d'incident, manivelle à la souris, éclatement, couleurs des trains.
 
 ## Ce que fait le programme
 
@@ -178,9 +178,18 @@ et c'est l'exeligmos qui en rend compte.
 Les positions des 15 arbres ne sont pas dessinées à la main. Elles résultent
 d'une **optimisation sous contraintes** (SageMath + scipy) imposant simultanément
 les 17 entraxes exacts, la fermeture des deux boucles cinématiques, et
-l'absence de collision — en tenant compte du fait que b1, e3 et e4 sont des
-roues **à bras**, donc évidées. Résultat : entraxes exacts au micron, aucune
-collision, encombrement 277 × 257 mm au module 1,0.
+l'absence de collision. Résultat : entraxes exacts au micron, encombrement
+277 × 257 mm au module 1,0.
+
+Depuis la v1.3.1, le contrôle de collision porte sur la longueur **dessinée**
+des arbres, prolongés jusqu'à leurs cadrans, et sur 76 angles du
+porte-satellite e3. Il a révélé deux défauts, corrigés : l'arbre o (aiguille
+callippique) traversait la roue i1 de l'exeligmos — il a tourné sur son cercle
+d'entraxe autour de p, du côté de la spirale métonique, et le cadran
+callippique avec lui ; les roues k1/k2 du tenon-fente, qui tournent avec e3,
+balayaient les arbres b et l — elles sont passées juste devant e3, qui les
+porte. Aucun arbre ne traverse plus une roue, même à bras (une roue à bras
+tourne : ses bras balaieraient l'arbre).
 
 ## Structure
 
@@ -215,7 +224,8 @@ Vérifie les rapports contre les valeurs calculées indépendamment sous SageMat
 le mois anomalistique, le tenon-fente, le retour à l'origine de chaque cadran
 après un cycle complet, les périodes planétaires, l'astronomie de référence,
 le budget d'erreur, la validité des 33 maillages, les 17 entraxes, l'éclatement
-(aucune collision, aucun déplacement dans le plan), la palette (CIEDE2000,
+(aucune collision, aucun déplacement dans le plan, aucun arbre — prolongé
+jusqu'à son cadran — à travers une roue, porte-satellite en mouvement), la palette (CIEDE2000,
 daltonismes simulés) et l'absence de texte non traduit — clés manquantes **et**
 textes affichés écrits en dur. Les tests d'interface tournent la manivelle à la
 souris, vérifient la molette, l'éclatement réellement affiché, et qu'aucun
@@ -260,7 +270,7 @@ They bundle their own Python; no administrator password is needed.
 | System | File | How to install |
 |---|---|---|
 | **Windows** | [`Anticythere3D-Setup.exe`](https://github.com/ARP273-ROSE/Anticythere3D/releases/latest/download/Anticythere3D-Setup.exe) (permanent link) | Run the installer. "Windows protected your PC" (unsigned installer): *More info*, then *Run anyway*, once. |
-| **macOS** Apple Silicon / Intel | `Anticythere3D-<version>-macos-arm64.dmg` / `-macos-x86_64.dmg` | Open the image, drag the app into *Applications*. Unsigned: the first time, **right-click → Open**, then confirm. |
+| **macOS** Apple Silicon / Intel | `Anticythere3D-<version>-macos-arm64.dmg` / `-macos-x86_64.dmg` | Open the image, drag the app into *Applications*. Unsigned: the first time, **right-click → Open**, then confirm (if macOS still refuses: *System Settings → Privacy & Security → Open Anyway*). |
 | **Linux** x86_64 / ARM64 | `Anticythere3D-<version>-linux-x86_64.tar.gz` / `-linux-arm64.tar.gz` | Unpack, run `./installer.sh`: installs into `~/.local/share` with a menu entry, **no sudo**. |
 
 The program then updates itself on all three systems (it detects a new
@@ -336,6 +346,15 @@ to within **1.8 minutes**. The app continuously displays its own error against
 modern ephemerides, and the test suite bounds that error by an explicit physical
 budget (unmodelled evection and variation, `254/19` drift, apogee precession).
 
+The arbor layout comes from a constrained optimisation (17 exact centre
+distances, no collision). Since v1.3.1 the collision check covers each arbor's
+**drawn** length, extended to its dial, at 76 angles of the carrier e3. It
+caught two faults, now fixed: arbor o (Callippic hand) went through wheel i1
+of the Exeligmos train — it moved along its pitch circle around p, towards the
+Metonic spiral, taking the Callippic dial with it; and wheels k1/k2 of the
+pin-and-slot, which turn with e3, swept through arbors b and l — they now sit
+just in front of e3, which carries them.
+
 ## Tests
 
 ```bash
@@ -345,7 +364,8 @@ python tests/test_mechanism.py
 Sixteen headless test groups: exact ratios cross-checked against SageMath,
 anomalistic month, pin-and-slot extremes, every dial returning to its origin
 after a full cycle, planetary period relations, reference astronomy, error
-budget, 33 valid meshes, 17 exact centre distances, collision-free explosion,
+budget, 33 valid meshes, 17 exact centre distances, collision-free explosion
+(including every arbor extended to its dial, with the carrier turning),
 colour palette (CIEDE2000, simulated colour blindness), and no untranslated
 string — neither missing keys nor hard-coded displayed text. Plus eleven GUI
 test groups (`xvfb-run -a python tests/test_gui.py`): crank turned with the

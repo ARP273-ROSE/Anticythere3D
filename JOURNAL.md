@@ -1,5 +1,55 @@
 # Anticythere3D — journal
 
+## 2026-10-14 — arbre o, tenon-fente, manuel (v1.3.1)
+
+### Arbre o à travers i1
+- Cause : l'implantation (optimisation SageMath) n'interdisait les
+  traversées que sur la portée PROPRE des arbres. Prolongé jusqu'au cadran
+  callippique (étage 11 → dos), l'arbre o passait à 22,08 mm de i, alors
+  que i1 (60 dents, étage 16) a un rayon de tête de 31 mm. Aucun ordre des
+  étages ne peut l'éviter : o et i vont tous deux jusqu'au dos et portent
+  chacun une roue de 31 mm.
+- Correctif : o est une feuille du train (il n'engrène que p2). Il tourne
+  sur son cercle d'entraxe autour de p (36 mm, exact à 0,03 µm) jusqu'à
+  165°, du côté de la spirale métonique : (13,6707 ; 41,0575), à 50,4 mm de
+  i. Fidèle à l'original sur ce point : le cadran callippique dans la moitié
+  haute (métonique), celui de l'exeligmos dans la moitié basse (Saros). Ni
+  arbre coaxial creux (o et i ne sont pas coaxiaux), ni arbre coudé.
+- Le train callippique (n2/p1, o1/p2) passe derrière e3/e4 (étages 12-13) :
+  sinon o traversait le porte-satellite e3 et e4, roues à bras qui TOURNENT.
+  L'ancienne exception « une roue à bras laisse passer les arbres » est
+  supprimée : plus aucun arbre ne traverse une roue, à bras ou non, sauf
+  ceux qu'elle porte.
+- Vérification exacte : `anticythere_arbre_o.sage` (sage/03_anticythere).
+
+### Tenon-fente qui balayait b et l
+- Trouvé par le test étendu : k1/k2 tournent avec e3 sur un cercle de
+  50 mm autour de e et passaient à 18 mm de l'arbre b, 21,5 mm de l, aux
+  étages 5-6 que ces arbres traversent. L'ancien test ne regardait que la
+  position de départ du porte-satellite (et un arbre k/K immobile).
+- Correctif : e6/k2 à l'étage 8, e5/k1 à l'étage 9, juste devant e3 (10),
+  qui les porte ; l'arbre k est prolongé jusqu'à e3 (`MOUNTED_ON`), K tenu
+  par une potence non dessinée. Les tubes coaxiaux de e s'emboîtent
+  (e2-e5 : 4-9 ⊃ e1-e6 : 5-8 ; e3-e4 : 10-11). Toujours 16 étages.
+
+### Test [14] étendu
+- Arbres sur leur longueur DESSINÉE (`arbor_span`, prolongée jusqu'aux
+  cadrans), 6 éclatements × 76 angles du porte-satellite, k/K en orbite,
+  aucune exception pour les roues à bras ; recouvrements dans un même plan ;
+  emboîtement des tubes de e. Sur l'ancienne géométrie il échoue :
+  `[('b','k1'), ('b','k2'), ('l','k1'), ('l','k2'), ('o','e3'), ('o','e4'),
+  ('o','i1')]`. [G10] vérifie que les arbres affichés ont cette position et
+  cette longueur.
+
+### Manuel
+- `docs/Manuel.pdf` : 10 → 15 pages. Paquets Windows/macOS/Linux, mise à
+  jour automatique, rapports d'incident, emplacement des données ; manivelle
+  à la souris (main au survol, 48/223 d'année = 78,6 jours, vectoriel) ;
+  molette, clic droit glissé, double-clic ; éclatement ; palette des sept
+  trains avec codes et légende ; correctif de l'arbre o (figure) ; guide
+  anglais réécrit. Captures refaites sous Xvfb.
+- Manuel intégré (F1) : gestes de souris et renvoi au PDF.
+
 ## 2026-10-14 — manivelle à la souris, éclatement refait, palette, macOS et Linux (v1.3.0)
 
 Retours d'usage : « on ne peut pas tourner la molette graphique » ;

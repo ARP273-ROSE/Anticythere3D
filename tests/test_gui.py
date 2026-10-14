@@ -220,6 +220,24 @@ def main() -> int:
                 z_prec[nom_r] = z
         check(not ecarts, "les roues affichees suivent l'eclatement calcule, "
               "sans bouger dans leur plan", str(ecarts[:5]))
+        # les arbres affiches : position (k et K suivent le porte-satellite)
+        # et longueur PROLONGEE jusqu'aux cadrans, celle que le test [14]
+        # verifie contre toutes les roues
+        faux = []
+        for val in (0, 100):
+            w.sld_explode.setValue(val)
+            v.set_angles(v._angles, 0.3)
+            app.processEvents()
+            for arbre, item in v._arbors.items():
+                m = item.transform()
+                x, y = lay.arbor_position(arbre, 0.3)
+                z0, z1 = lay.arbor_span(arbre, val / 100.0)
+                if (math.hypot(m.column(3).x() - x, m.column(3).y() - y) > 1e-4
+                        or abs(m.column(3).z() - z0) > 1e-4
+                        or abs(m.column(2).z() - (z1 - z0)) > 1e-4):
+                    faux.append((arbre, val))
+        check(not faux, "les arbres affiches ont la position et la longueur "
+              "prolongee controlees par le test [14]", str(faux[:5]))
         w.sld_explode.setValue(0)
     w.set_render_mode("vector")
     check(not w.sld_explode.isEnabled(),
