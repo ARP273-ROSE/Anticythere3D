@@ -1,5 +1,54 @@
 # Anticythere3D — journal
 
+## 1.4.0 — 2026-10-14 — standard du kit commun
+
+Remise au niveau du gabarit `_kit_windows` (posé par
+`poser_le_kit.py --multiplateforme --confidentialite`, aucune copie modifiée à
+la main : `tests/test_kit.py` compare octet par octet).
+
+### Kit commun
+- `updater.py` : contrôle d'intégrité par la taille annoncée et `SHA256SUMS`,
+  sans plafond de taille ; cascade TLS commune (`reporting.ouvrir_url`).
+- `build_unix.py` du gabarit : plus aucune valeur en dur (icônes, noms et
+  descriptions FR/EN de l'entrée de menu, catégories, `.icns`) — tout vient de
+  `kit.json` ; lanceur qui suit les liens symboliques ; Python « stripped ».
+- Workflow `release.yml` du gabarit : essais `tests_ci` sous Xvfb avant toute
+  publication, journal technique obligatoire (`## X.Y.Z` ici), `SHA256SUMS`,
+  copies à nom stable des `.dmg` et `.tar.gz` (liens `latest/download`).
+- Archive de mise à jour : `docs/` n'est plus copié en entier (12 Mo de
+  captures et de fichiers Sage) — règle `copies` : manuels, logo, icônes.
+  Rapports, réglages, traces et journal d'erreur dans `fichiers_proteges`.
+- 🔴 La trace d'un crash natif était perdue : `faulthandler` ouvrait
+  `_crash_natif.log` en écriture (donc le vidait) AVANT que
+  `relever_crash_natif` ne le lise. Ordre inversé ; test sur l'arbre syntaxique.
+
+### Interface
+- Menu Aide du kit (`kit_aide.py`, commun à MountMonitor, CinéThèque,
+  BiblioThèque) : manuel PDF (F1), mises à jour, signalement, case d'accord.
+  Le code maison équivalent de `mainwindow.py` et `run.py` est retiré (≈ 270
+  lignes), avec ses clés de traduction.
+- Style FIGÉ (`anticythere/style.py` + `interface_kit.appliquer_style`) :
+  Fusion, palette complète dans les trois groupes, police Source Sans 3
+  embarquée, feuille de style ; parchemin, bleu de nuit et bronze du logo.
+  Les bandeaux « Face avant / Face arrière » du tableau suivaient la palette
+  du système (texte illisible sur thème clair) : couleurs imposées.
+- Boîte de fichiers Qt complète sous Linux (exports SVG/PDF/PNG/CSV, dossier
+  STL), avec barre latérale.
+- 🔴 « Recentrer » ne recentrait pas après un roulis ou la vue arrière : en
+  mode quaternion, `setCameraPosition(elevation, azimuth)` de pyqtgraph garde le
+  roulis courant. `look_at` pose la rotation entière ; test [G12].
+
+### Logo, manuels
+- Logo : `docs/logo.svg` devient la SOURCE UNIQUE ; `anticythere/logo.py` ne
+  dessine plus rien, il rend le SVG (icône de fenêtre, PNG 16→1024, `.ico`,
+  `.icns` assemblé sans iconutil, « À propos », page de garde des manuels).
+- Manuels LaTeX au format maison, `docs/src/` : `manuel-fr.pdf` et un vrai
+  `manuel-en.pdf` complet (17 p. chacun) au lieu du manuel français avec guide
+  anglais en annexe ; captures réelles dans chaque langue (`docs/captures.py`,
+  Xvfb, date fixe : éclipse du 12/08/2026, dossier personnel fictif).
+- `run.py --check` vérifie aussi style, menu Aide, logo et manuels : la CI
+  l'exécute avec l'interpréteur de chaque paquet construit.
+
 ## 2026-10-14 — arbre o, tenon-fente, manuel (v1.3.1)
 
 ### Arbre o à travers i1

@@ -274,6 +274,34 @@ def main() -> int:
           "anglais dans l'interface francaise",
           "\n    ".join(map(str, anglais[:12])))
 
+    # ------------------------------------------------ recentrer = vraie remise a zero
+    print("\n[G12] Recentrer apres un roulis et la vue arriere")
+    v = w.view3d
+    if hasattr(v, "roll"):
+        v.look_at("iso")
+        r0 = v.opts["rotation"]
+        v.roll(30)
+        v.look_at("back")
+        v.look_at("iso")
+        check((v.opts["rotation"] - r0).length() < 1e-5,
+              "la vue de trois quarts est la meme, quel que soit le roulis precedent")
+
+    # ------------------------------------------------ « A propos » avec le logo
+    print("\n[G13] Le logo dans « A propos »")
+    vus = []
+
+    def _voir():
+        dlg = QtWidgets.QApplication.activeModalWidget()
+        if dlg is None:
+            QtCore.QTimer.singleShot(50, _voir)
+            return
+        logo = dlg.findChild(QtWidgets.QLabel, "logo_a_propos")
+        vus.append(logo is not None and not logo.pixmap().isNull())
+        dlg.close()
+    QtCore.QTimer.singleShot(50, _voir)
+    w._help("about")
+    check(vus == [True], "le logo (meme source SVG) est affiche")
+
     print("\n" + "=" * 70)
     if FAILURES:
         print(f"  {len(FAILURES)} ECHEC(S) : {FAILURES}")

@@ -24,10 +24,6 @@ SUBSYSTEM_KEYS = ["input", "moon", "anomaly", "metonic", "callippic",
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    # Résultat de la vérification de mise à jour, émis depuis un fil de fond
-    # (un QTimer créé dans ce fil n'aurait pas de boucle d'événements).
-    _upd_result = QtCore.pyqtSignal(object, bool)
-
     def __init__(self, lang: str = DEFAULT_LANG):
         super().__init__()
         self.lang = lang
@@ -69,7 +65,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.timer.start(33)
 
         self.status = self.statusBar()
-        self._upd_result.connect(self._update_result)
         self._install_qt_translation(self.lang)
         if self.lang != self.view3d.dial_lang:
             # cadrans gravés dans la langue de départ
@@ -376,28 +371,28 @@ class MainWindow(QtWidgets.QMainWindow):
             self.lang_actions[code] = a
 
         self.m_help = mb.addMenu("")
-        self.act_update = self.m_help.addAction(
-            "", lambda: self._check_update(manual=True))
-        # Rapports d'incident : même dispositif que MusicOthèque et le
-        # simulateur Perce-Neige — signalement écrit, et envoi automatique
-        # des plantages/gels réglable ici (accord demandé au 1er lancement).
-        self.act_report = self.m_help.addAction("", self._signaler_probleme)
-        self.act_autoreport = self.m_help.addAction("")
-        self.act_autoreport.setCheckable(True)
+        # Menu Aide du kit commun (kit_aide.py, identique d'une application à
+        # l'autre) : manuel PDF dans la langue de l'interface (F1), mises à
+        # jour, signalement écrit et envoi automatique des rapports.
+        self.aide = None
         try:
-            import reporting as _rep
-            self.act_autoreport.setChecked(_rep.consentement() is True)
-            self.act_autoreport.toggled.connect(
-                lambda on: _rep.definir_consentement(bool(on)))
+            import kit_aide
+            from . import __version__
+            from pathlib import Path
+            docs = Path(__file__).resolve().parent.parent / "docs"
+            self.aide = kit_aide.AideKit(
+                self, __version__, lambda: self.lang, [docs],
+                nom_fil="anticythere", etat=self._etat_pour_rapport)
+            self.aide.remplir_menu(self.m_help)
+            self.aide.act_manuel.setShortcut("F1")
         except Exception:
-            self.act_autoreport.setEnabled(False)
+            self.aide = None
         self.m_help.addSeparator()
         self.act_manual = self.m_help.addAction("", lambda: self._help("manual"))
         self.act_science = self.m_help.addAction("", lambda: self._help("science"))
         self.act_keys = self.m_help.addAction("", lambda: self._help("shortcuts"))
         self.m_help.addSeparator()
         self.act_about = self.m_help.addAction("", lambda: self._help("about"))
-        self.act_manual.setShortcut("F1")
 
     # ------------------------------------------------------------ traduction
     def retranslate(self):
@@ -510,10 +505,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.act_iso.setText(tr("menu.view.iso", L))
         self.m_lang.setTitle(tr("menu.lang", L))
         self.m_help.setTitle(tr("menu.help", L))
-        self.act_update.setText(tr("menu.help.update", L))
-        self.act_update.setToolTip(tr("menu.help.update.tip", L))
-        self.act_report.setText(tr("menu.help.report", L))
-        self.act_autoreport.setText(tr("menu.help.autoreport", L))
+        if self.aide is not None:
+            self.aide.retraduire()
         self.act_manual.setText(tr("menu.help.manual", L))
         self.act_science.setText(tr("menu.help.science", L))
         self.act_keys.setText(tr("menu.help.shortcuts", L))
@@ -714,9 +707,12 @@ class MainWindow(QtWidgets.QMainWindow):
             a.setToolTip(tip); b.setToolTip(tip)
         f = a.font()
         if not value:
+            # bandeau de section : couleurs imposées (le texte suivait la
+            # palette du système et disparaissait sur un thème clair)
             f.setBold(True); a.setFont(f)
-            a.setBackground(QtGui.QColor(60, 70, 90))
-            b.setBackground(QtGui.QColor(60, 70, 90))
+            for it in (a, b):
+                it.setBackground(QtGui.QColor(28, 42, 66))
+                it.setForeground(QtGui.QColor(255, 255, 255))
         self.table.setItem(r, 0, a)
         self.table.setItem(r, 1, b)
 
@@ -862,211 +858,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.date_edit.setDate(QtCore.QDate(d.year, d.month, d.day))
         self.refresh()
 
-    # ------------------------------------------------------ mise à jour
-    # Dispositif du kit Windows, identique à MusicOthèque et au simulateur
-    # Perce-Neige : le paquet installé embarque Python ; chaque version publie
-    # une archive ZIP que le programme déballe lui-même dans app/ avant de se
-    # relancer (pas d'exécutable téléchargé, donc pas de SmartScreen). Depuis
-    # les sources, on se contente d'ouvrir la page de téléchargement.
-    def _check_update(self, manual: bool = False):
-        """Interroge GitHub dans un fil séparé, sans bloquer l'interface."""
-        import threading
-        from . import __version__
-        if manual:
-            self.status.showMessage(tr("update.checking", self.lang))
-
-        def _worker():
-            try:
-                import updater
-                info = updater.check(__version__)
-            except Exception:                         # ne jamais faire tomber l'app
-                info = None
-            self._upd_result.emit(info, manual)
-
-        self._upd_thread = threading.Thread(target=_worker, daemon=True,
-                                            name="anticythere-maj")
-        self._upd_thread.start()
-
-    def _update_result(self, info, manual: bool):
-        from . import __version__
-        L = self.lang
-        if not info:
-            self.status.showMessage("")
-            if manual:
-                QtWidgets.QMessageBox.information(
-                    self, tr("menu.help.update", L),
-                    tr("update.uptodate", L, current=__version__))
-            return
-        try:
-            import updater
-            installe = bool(updater.is_packaged())
-            page = f"https://github.com/{updater.REPO}/releases/latest"
-        except Exception:
-            installe, page = False, ""
-        box = QtWidgets.QMessageBox(self)
-        box.setWindowTitle(tr("menu.help.update", L))
-        box.setText(tr("update.available", L, version=info["version"],
-                       current=__version__))
-        notes = (info.get("notes") or "").strip()
-        try:
-            import updater as _upd
-            # les notes publiées portent les deux langues ; on ne montre
-            # que celle de l'interface
-            notes = _upd.notes_dans_la_langue(notes, L).strip()
-        except Exception:
-            pass
-        if notes:
-            box.setDetailedText(notes[:4000])
-        if installe:
-            oui = box.addButton(tr("update.install", L),
-                                QtWidgets.QMessageBox.ButtonRole.AcceptRole)
-        else:
-            box.setInformativeText(tr("update.sources", L))
-            oui = box.addButton(tr("update.open_page", L),
-                                QtWidgets.QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(tr("update.later", L),
-                      QtWidgets.QMessageBox.ButtonRole.RejectRole)
-        box.exec()
-        if box.clickedButton() is not oui:
-            return
-        if not installe:
-            if page:
-                QtGui.QDesktopServices.openUrl(QtCore.QUrl(page))
-            return
-        self._download_update(info)
-
-    def _download_update(self, info: dict):
-        """Télécharge et pose l'archive dans un fil de fond, avec dialogue de
-        progression. Le fil ne touche jamais Qt : il écrit dans un dict qu'un
-        QTimer relit à 10 Hz."""
-        import threading
-        import updater
-        L = self.lang
-        dlg = QtWidgets.QProgressDialog(tr("update.downloading", L), None,
-                                        0, 100, self)
-        dlg.setWindowTitle(tr("menu.help.update", L))
-        dlg.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
-        dlg.setCancelButton(None)
-        dlg.setMinimumDuration(0)
-        etat = {"fait": 0, "total": 0, "fini": False, "erreur": None,
-                "pose": False}
-
-        def _progress(done, total):
-            etat["fait"], etat["total"] = done, total
-
-        def _worker():
-            try:
-                etat["pose"] = bool(updater.download_and_apply(
-                    info, progress=_progress))
-            except Exception as exc:
-                etat["erreur"] = exc
-            finally:
-                etat["fini"] = True
-
-        threading.Thread(target=_worker, daemon=True,
-                         name="anticythere-maj-pose").start()
-        poll = QtCore.QTimer(self)
-        poll.setInterval(100)
-
-        def _tick():
-            if not etat["fini"]:
-                if etat["total"] > 0:
-                    dlg.setValue(min(99, etat["fait"] * 100 // etat["total"]))
-                return
-            poll.stop()
-            dlg.close()
-            err = etat["erreur"]
-            if err is not None:
-                texte = str(err)
-                verrouille = (isinstance(err, PermissionError)
-                              or "WinError 32" in texte
-                              or "used by another process" in texte
-                              or "utilisé par un autre processus" in texte)
-                QtWidgets.QMessageBox.warning(
-                    self, tr("menu.help.update", L),
-                    tr("update.locked", L) if verrouille
-                    else tr("update.failed", L, error=texte))
-                return
-            if not etat["pose"]:
-                QtWidgets.QMessageBox.warning(
-                    self, tr("menu.help.update", L),
-                    tr("update.failed", L, error="archive"))
-                return
-            QtWidgets.QMessageBox.information(
-                self, tr("menu.help.update", L), tr("update.restart", L))
-            try:
-                updater.restart()
-            finally:
-                QtWidgets.QApplication.quit()
-
-        poll.timeout.connect(_tick)
-        poll.start()
-        self._upd_poll = poll
-
     # --------------------------------------------------------- rapports
-    def _signaler_probleme(self):
-        """Signalement écrit, transmis au point de collecte avec l'état du
-        simulateur (port du dialogue de MusicOthèque). Repli : un .zip sur le
-        Bureau si le réseau manque."""
-        from . import __version__
-        L = self.lang
+    def _etat_pour_rapport(self) -> dict:
+        """État du simulateur joint à un signalement écrit."""
         try:
-            import reporting
-        except Exception:
-            return
-        dlg = QtWidgets.QDialog(self)
-        dlg.setWindowTitle(tr("menu.help.report", L).rstrip("…"))
-        dlg.resize(560, 400)
-        form = QtWidgets.QVBoxLayout(dlg)
-        form.addWidget(QtWidgets.QLabel(tr("report.prompt", L)))
-        texte = QtWidgets.QPlainTextEdit()
-        texte.setPlaceholderText(tr("report.placeholder", L))
-        form.addWidget(texte)
-        note = QtWidgets.QLabel(tr("report.note", L))
-        note.setWordWrap(True)
-        note.setStyleSheet("color: gray;")
-        form.addWidget(note)
-        btns = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.StandardButton.Ok
-            | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
-        btns.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setText(
-            tr("report.send", L))
-        btns.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel).setText(
-            tr("dlg.cancel", L))
-        form.addWidget(btns)
-        btns.accepted.connect(dlg.accept)
-        btns.rejected.connect(dlg.reject)
-        if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted:
-            return
-        description = texte.toPlainText().strip()
-        if not description:
-            QtWidgets.QMessageBox.information(
-                self, tr("menu.help.report", L).rstrip("…"), tr("report.empty", L))
-            return
-        # Un signalement écrit à la main est toujours transmis : on vient de
-        # demander qu'on le lise. L'accord ne gouverne que l'automatique.
-        accord = reporting.consentement()
-        if accord is not True:
-            reporting.definir_consentement(True)
-        try:
-            etat = {"rendu": getattr(self, "_render_mode", "?"),
+            return {"rendu": getattr(self, "_render_mode", "?"),
                     "jours": round(float(getattr(self.mech, "days", 0.0)), 2)}
         except Exception:
-            etat = {}
-        rapport = reporting.envoyer("manuel", description=description,
-                                    version=__version__, **etat)
-        if accord is not True:
-            reporting.definir_consentement(bool(accord))
-        chemin = None
-        try:
-            chemin = reporting.paquet_local(rapport, None)
-        except Exception:
-            chemin = None
-        if rapport.get("transmis", True) and chemin is None:
-            msg = tr("report.sent", L)
-        else:
-            msg = tr("report.local", L, path=chemin or "-")
-        QtWidgets.QMessageBox.information(self, tr("report.thanks", L), msg)
+            return {}
 
     def help_html(self, which: str) -> str:
         """Contenu HTML d'une page d'aide, dans la langue de l'interface."""
@@ -1081,7 +880,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     ("← ↑ → ↓", tr("keys.arrows", L)),
                     (tr("keys.pages", L), tr("keys.roll", L)),
                     ("+ −", tr("keys.zoom", L)),
-                    ("F1", tr("menu.help.manual", L)),
+                    ("F1", tr("keys.f1", L)),
                     ("Ctrl+Q", tr("menu.file.quit", L))]
             body = "".join(f"<tr><td><b>{k}</b></td><td>{v}</td></tr>"
                            for k, v in rows)
@@ -1118,6 +917,19 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg.setWindowTitle(tr("menu.help", L).replace("&", ""))
         dlg.resize(760, 560)
         v = QtWidgets.QVBoxLayout(dlg)
+        if which == "about":
+            # le logo de la fenêtre « À propos » sort de la même source que
+            # l'icône, l'installeur et les manuels (docs/logo.svg)
+            dlg.resize(560, 460)
+            try:
+                from .logo import pixmap
+                logo = QtWidgets.QLabel()
+                logo.setObjectName("logo_a_propos")
+                logo.setPixmap(pixmap(128))
+                logo.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+                v.addWidget(logo)
+            except Exception:
+                pass
         br = QtWidgets.QTextBrowser(); br.setHtml(html)
         br.setOpenExternalLinks(True)
         v.addWidget(br)

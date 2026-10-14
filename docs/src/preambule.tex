@@ -1,0 +1,97 @@
+% Préambule commun aux manuels d'Anticythere3D (français et anglais), au
+% format maison des PDF : Latin Modern, titres sans empattement colorés,
+% encadrés tcolorbox typés, icônes fontawesome, page de garde avec le logo.
+% Compilation : ./compiler.sh (deux passes par langue, temporaires supprimés).
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,left=2.2cm,right=2.2cm,top=2.4cm,bottom=2.2cm,headheight=24pt]{geometry}
+\usepackage{graphicx}
+\usepackage[table]{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[nobottomtitles*]{titlesec}
+\usepackage{needspace}
+\usepackage{fancyhdr}
+\usepackage{fontawesome5}
+\usepackage{etoolbox}
+\DeclareUnicodeCharacter{00B0}{\ifmmode^\circ\else\textdegree\fi}
+\DeclareUnicodeCharacter{2192}{\ensuremath{\rightarrow}}
+\DeclareUnicodeCharacter{2212}{\ensuremath{-}}
+
+% Couleurs maison, et celles du programme (logo : nuit et bronze ; fond de la
+% vue 3D : parchemin)
+\definecolor{sky}{HTML}{1C6DB4}
+\definecolor{skyl}{HTML}{E8F1F9}
+\definecolor{alert}{HTML}{B5382B}
+\definecolor{alertl}{HTML}{FBEAE7}
+\definecolor{sapin}{HTML}{2C7A55}
+\definecolor{sapinl}{HTML}{E4F2EA}
+\definecolor{nuit}{HTML}{1C2A42}
+\definecolor{bronze}{HTML}{A87C30}
+\definecolor{bronzel}{HTML}{F8F0DD}
+\definecolor{parchemin}{HTML}{F5F0E6}
+\definecolor{summit}{HTML}{6B7A8F}
+\definecolor{ink}{HTML}{1C2433}
+\definecolor{lightblue}{HTML}{DCE8F4}
+% les sept trains : valeurs exactes de anticythere/layout.py (COLORS)
+\definecolor{trinput}{HTML}{DE6910}
+\definecolor{trmoon}{HTML}{0D59C1}
+\definecolor{tranomaly}{HTML}{8E1700}
+\definecolor{trmetonic}{HTML}{1D9594}
+\definecolor{trcallippic}{HTML}{786F4C}
+\definecolor{trsaros}{HTML}{841959}
+\definecolor{trexeligmos}{HTML}{B66CCD}
+\newcommand{\pastille}[1]{\textcolor{#1}{\rule[-0.6mm]{9mm}{3.4mm}}}
+\AtBeginDocument{\color{ink}}
+
+\titleformat{\section}
+  {\Large\bfseries\sffamily\color{sky}}
+  {\makebox[1.6em][l]{\thesection}}{0.3em}{}
+  [{\vspace{1pt}\color{sky!35}\titlerule[1.3pt]}]
+\titlespacing*{\section}{0pt}{16pt}{8pt}
+\titleformat{\subsection}{\large\bfseries\sffamily\color{alert}}{\thesubsection}{0.5em}{}
+\pretocmd{\section}{\needspace{12\baselineskip}}{}{}
+\pretocmd{\subsection}{\needspace{16\baselineskip}}{}{}
+\widowpenalty=10000
+\clubpenalty=10000
+\raggedbottom
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlist[enumerate]{itemsep=3pt,leftmargin=7mm}
+\setlist[itemize]{itemsep=2pt,leftmargin=6mm}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{sky!40}\leaders\hrule height \headrulewidth\hfill}}
+\fancyfoot[C]{\sffamily\small\color{summit}\thepage}
+\renewcommand{\sectionmark}[1]{\markboth{#1}{}}
+
+\newcommand{\menu}[1]{\textsf{\textbf{\textcolor{nuit}{#1}}}}
+\newcommand{\touche}[1]{\tcbox[on line,boxsep=0pt,left=2pt,right=2pt,top=1.5pt,bottom=1.5pt,
+  colback=white,colframe=summit,boxrule=0.5pt,arc=1.5pt]{\footnotesize\textsf{#1}}}
+\newcommand{\fichier}[1]{\texttt{\small #1}}
+
+% Encadrés typés : jamais coupés avec une ligne isolée (3 lignes au moins de
+% chaque côté d'une coupure), et précédés d'un contrôle de place.
+\newcommand{\encadre}[5]{%
+  \newtcolorbox{#1}[1][#5]{enhanced,breakable,colback=#2,colframe=#3,
+    coltitle=white,fonttitle=\bfseries\sffamily\small,boxrule=0.9pt,arc=2.5pt,
+    left=3mm,right=3mm,top=1.5mm,bottom=1.5mm,title={#4~~##1},
+    before upper={\widowpenalties 4 10000 10000 10000 0 \clubpenalties 4 10000 10000 10000 0}}%
+  \BeforeBeginEnvironment{#1}{\par\needspace{8\baselineskip}}}
+
+% \capture[largeur]{fichier}{légende}
+\newcommand{\capture}[3][1]{\par\needspace{10\baselineskip}\begin{center}%
+  \begin{minipage}{#1\linewidth}\centering\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.6pt}%
+  \fcolorbox{summit!50}{white}{\includegraphics[width=\dimexpr\linewidth-1.3pt\relax]{#2}}\\[1.5mm]
+  {\small\color{summit}#3}\end{minipage}\end{center}}
+\graphicspath{{../captures/}{../}}

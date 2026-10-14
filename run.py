@@ -22,6 +22,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) or ".")
 from anticythere import bootstrap                                # noqa: E402
 
 
+#: nom du programme : dossier de données, verrou nommé lu par l'installeur
+NOM = "Anticythere3D"
 _fichier_faulthandler = None
 #: langue des messages émis avant l'ouverture de la fenêtre
 _LANGUE = "fr"
@@ -56,7 +58,7 @@ def _dossier_donnees():
         else:
             racine = Path(os.environ.get("XDG_DATA_HOME")
                           or Path.home() / ".local" / "share")
-        base = racine / "Anticythere3D"
+        base = racine / NOM
     else:
         base = ici
     try:
@@ -74,13 +76,9 @@ def _demarrer_rapports():
     """
     dossier = _dossier_donnees()
     trace_native = dossier / "_crash_natif.log"
-    try:
-        import faulthandler
-        global _fichier_faulthandler
-        _fichier_faulthandler = open(trace_native, "w", encoding="utf-8")
-        faulthandler.enable(file=_fichier_faulthandler, all_threads=True)
-    except Exception:
-        pass
+    # Relever la trace de la session précédente AVANT d'armer faulthandler :
+    # l'ouverture du fichier en écriture le vide, et la trace d'un crash
+    # natif était perdue avant d'avoir été lue.
     try:
         import reporting
         from anticythere import __version__
@@ -89,36 +87,42 @@ def _demarrer_rapports():
         reporting.reprendre_file_en_fond()
     except Exception:
         pass
-
-
-def _demander_accord_rapports(win, lang: str) -> None:
-    """Au premier lancement : demander l'accord pour l'envoi automatique des
-    rapports (plantage, gel, crash natif, preuve de vie), puis signaler
-    l'installation ou le démarrage du jour — comme MusicOthèque."""
     try:
-        import reporting
-        from PyQt6 import QtWidgets
-        from anticythere.i18n import tr
-        premier = reporting.consentement() is None
-        if premier:
-            boite = QtWidgets.QMessageBox(win)
-            boite.setWindowTitle("Anticythere3D")
-            boite.setIcon(QtWidgets.QMessageBox.Icon.Question)
-            boite.setText(tr("consent.title", lang))
-            boite.setInformativeText(tr("consent.text", lang))
-            oui = boite.addButton(tr("consent.yes", lang),
-                                  QtWidgets.QMessageBox.ButtonRole.AcceptRole)
-            boite.addButton(tr("consent.no", lang),
-                            QtWidgets.QMessageBox.ButtonRole.RejectRole)
-            boite.exec()
-            reporting.definir_consentement(boite.clickedButton() is oui)
-            try:
-                win.act_autoreport.setChecked(reporting.consentement() is True)
-            except Exception:
-                pass
-        reporting.signaler_demarrage(premier=premier)
+        import faulthandler
+        global _fichier_faulthandler
+        _fichier_faulthandler = open(trace_native, "w", encoding="utf-8")
+        faulthandler.enable(file=_fichier_faulthandler, all_threads=True)
     except Exception:
         pass
+
+
+def _verifier_interface() -> int:
+    """--check, suite : ce que le paquet doit savoir faire sans écran —
+    style figé, menu Aide du kit, logo rendu depuis sa source SVG, manuels
+    PDF dans les deux langues. Lancé par la construction des paquets."""
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from pathlib import Path
+    try:
+        from PyQt6 import QtWidgets
+        app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv[:1])
+        import interface_kit
+        import kit_aide  # noqa: F401
+        import reporting  # noqa: F401
+        import updater  # noqa: F401
+        from anticythere import style
+        from anticythere.logo import render
+        style.appliquer(app)
+        assert style.style_de_base(app) == "fusion", style.style_de_base(app)
+        assert not render(64).isNull(), "logo"
+        docs = Path(__file__).resolve().parent / "docs"
+        for lg in ("fr", "en"):
+            assert (docs / f"manuel-{lg}.pdf").is_file(), f"manuel-{lg}.pdf"
+        del interface_kit
+    except Exception as exc:
+        print(f"{NOM} : ECHEC / FAILED -- {type(exc).__name__}: {exc}")
+        return 1
+    print(f"{NOM} : interface OK")
+    return 0
 
 
 def _crash_report(exc: BaseException) -> None:
@@ -198,7 +202,7 @@ def main() -> int:
             print()
             print(bootstrap.system_hint())
             return 2
-        return 0 if report["ok"] else 1
+        return _verifier_interface() if report["ok"] else 1
     if not report["ok"]:
         print(bootstrap.describe(report), file=sys.stderr)
         return 1
@@ -210,7 +214,7 @@ def main() -> int:
     if report["installed"] or not report["has_3d"]:
         print(bootstrap.describe(report))
 
-    from PyQt6 import QtGui, QtWidgets
+    from PyQt6 import QtCore, QtGui, QtWidgets
 
     if args.samples > 0:
         # antialiasing : à régler AVANT la création de QApplication,
@@ -224,7 +228,8 @@ def main() -> int:
     from anticythere.mainwindow import MainWindow
 
     app = QtWidgets.QApplication(sys.argv)
-    app.setApplicationName("Anticythere3D")
+    app.setApplicationName(NOM)
+    app.setApplicationDisplayName(NOM)
     # Verrou nommé lu par l'installeur Inno (AppMutex = <nom_fichier>EnCours) :
     # installer par-dessus une application ouverte ne remplacerait pas les
     # fichiers en cours d'utilisation, et annoncerait pourtant « terminé ».
@@ -232,9 +237,22 @@ def main() -> int:
         try:
             import ctypes
             app._mutex_installeur = ctypes.windll.kernel32.CreateMutexW(
-                None, False, "Anticythere3DEnCours")
+                None, False, f"{NOM}EnCours")
         except Exception:
             pass
+    # Apparence FIGÉE (Fusion, palette complète, police embarquée) et vraie
+    # boîte de fichiers complète sous Linux, où la boîte « native » du
+    # portail est souvent réduite (kit commun, interface_kit.py).
+    try:
+        from anticythere import style
+        style.appliquer(app)
+    except Exception:
+        app.setStyle("Fusion")
+    try:
+        import interface_kit
+        interface_kit.installer_dialogues_fichiers()
+    except Exception:
+        pass
     try:
         from anticythere.logo import app_icon
         app.setWindowIcon(app_icon())
@@ -244,7 +262,6 @@ def main() -> int:
     if not lang:
         # le choix fait dans le menu Langue l'emporte ; à défaut, la langue
         # d'affichage du système, que Qt lit correctement partout
-        from PyQt6 import QtCore
         saved = QtCore.QSettings("Anticythere3D", "Anticythere3D").value("lang")
         lang = saved if saved in ("fr", "en") else detect_language(
             QtCore.QLocale.system().uiLanguages())
@@ -255,26 +272,19 @@ def main() -> int:
     win.show()
 
     # Accord pour l'envoi automatique des rapports (1er lancement), puis
-    # preuve de vie / installation ; et vérification silencieuse des mises à
-    # jour 3 s après l'ouverture, seulement pour une version installée.
-    from PyQt6.QtCore import QTimer
-    QTimer.singleShot(1200, lambda: _demander_accord_rapports(win, win.lang))
-    try:
-        import updater
-        if updater.is_packaged():
-            QTimer.singleShot(3000, lambda: win._check_update(manual=False))
-    except Exception:
-        pass
+    # preuve de vie ; recherche silencieuse des mises à jour 3 s après
+    # l'ouverture, pour une version installée seulement (kit_aide.py).
+    if getattr(win, "aide", None) is not None:
+        win.aide.demarrer(accord_ms=1200, maj_ms=3000)
 
     # Vigie anti-gel : un rendu 3D qui bloque le fil graphique ne laisse
     # sinon aucune trace — l'utilisateur tue la fenetre et ne peut rien en
     # dire. La pile capturee nomme l'operation fautive.
     try:
         import reporting
-        from PyQt6.QtCore import QTimer
         vigie = reporting.Vigie(seuil=10.0, periode=2.0)
         vigie.demarrer()
-        minuteur = QTimer(win)
+        minuteur = QtCore.QTimer(win)
         minuteur.timeout.connect(vigie.battre)
         minuteur.start(2000)
         win._vigie, win._vigie_timer = vigie, minuteur

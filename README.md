@@ -19,10 +19,10 @@ jour automatique et rapports d'incident sur les trois.
 Deux rendus au choix : **3D** temps réel (fond clair, antialiasing 8×) et
 **vectoriel 2D**, en courbes, exportable en SVG / PDF — sans aucun pixel.
 
-![vue 3D](docs/vue_3d_clair.png)
-![la manivelle tournée à la souris fait avancer les cadrans](docs/manivelle_souris.png)
-![éclatement à 0, 50 et 100 %](docs/vue_eclatee.png)
-![vue vectorielle](docs/vue_vectorielle.png)
+![la fenêtre du simulateur, machine fermée](docs/captures/fenetre-fr.png)
+![la manivelle tournée à la souris fait avancer les cadrans](docs/captures/manivelle-fr.png)
+![éclatement à 0, 50 et 100 %](docs/captures/eclatement-fr.png)
+![rendu vectoriel](docs/captures/vectoriel-fr.png)
 
 ---
 
@@ -43,7 +43,7 @@ administrateur.
 
 Ensuite, le programme se met à jour **tout seul**, sur les trois systèmes : il
 détecte la nouvelle version au démarrage et propose de l'installer (ou **Aide →
-Rechercher une mise à jour**) ; seule une petite archive de code est
+Rechercher des mises à jour…**) ; seule une petite archive de code est
 téléchargée. S'il plante ou se fige, il peut le signaler de lui-même à son
 auteur, avec ton accord (demandé au premier lancement, modifiable dans le menu
 Aide) ; **Aide → Signaler un problème…** envoie un signalement écrit. Rien
@@ -97,7 +97,7 @@ rien à faire : les binaires PyQt6 embarquent tout.
 **Si OpenGL n'est pas disponible**, l'application bascule automatiquement sur le
 rendu vectoriel, qui montre les mêmes rotations — elle ne plante pas.
 
-📖 **Manuel complet illustré** : [`docs/Manuel.pdf`](docs/Manuel.pdf) (15 pages, FR + guide EN) : installation sur les trois systèmes, mise à jour, rapports d'incident, manivelle à la souris, éclatement, couleurs des trains.
+📖 **Manuel complet illustré**, en français [`docs/manuel-fr.pdf`](docs/manuel-fr.pdf) et en anglais [`docs/manuel-en.pdf`](docs/manuel-en.pdf) (17 pages chacun, captures réelles de l'interface dans sa langue), ouvert par **Aide → Manuel (PDF)** ou `F1` : installation sur les trois systèmes, mise à jour, rapports d'incident, manivelle à la souris, éclatement, couleurs des trains, éclipses, exports.
 
 ## Ce que fait le programme
 
@@ -111,7 +111,9 @@ rendu vectoriel, qui montre les mêmes rotations — elle ne plante pas.
 | **Profil des dents** | Bascule entre les **triangles** de la machine antique et la **développante de cercle** moderne — la différence se voit à l'écran. |
 | **Report des cadrans** | Panneau détachable : date, calendrier égyptien, Soleil et Lune dans le zodiaque, correction d'anomalie, phase, ligne des nœuds, case métonique, cadran callippique, Jeux, case du Saros, correction de l'exeligmos, prédiction d'éclipse, planètes, **et l'écart entre la machine et le ciel réel**. |
 | **Explications** | Un texte par sous-ensemble, avec les nombres de dents, les rapports exacts et pourquoi ils sont ce qu'ils sont. |
-| **Aide** | Manuel intégré (F1), table des rapports exacts, raccourcis clavier, à propos. Tooltips bilingues partout. |
+| **Aide** | Manuel PDF dans la langue de l'interface (F1), guide rapide intégré, table des rapports exacts, raccourcis clavier, à propos (avec le logo). Tooltips bilingues partout. |
+| **Apparence figée** | Style Qt « Fusion », palette complète et police embarquée (Source Sans 3) : même aspect sous Windows, macOS et Linux, thème clair ou sombre du système. |
+| **Explorateur de fichiers** | Les exports (SVG, PDF, PNG, CSV, STL) ouvrent un vrai explorateur, complet aussi sous Linux (boîte Qt avec barre latérale : dossier personnel, Bureau, Documents, supports montés). |
 | **Rendu vectoriel** | Second mode de rendu, en courbes : dentures réelles, molette pour zoomer, glisser pour déplacer, face avant / arrière. **Aucun pixel, à n'importe quel zoom.** |
 | **Export** | Capture PNG, **SVG et PDF A3 vectoriels** (aucune image bitmap à l'intérieur), export CSV des valeurs affichées. |
 
@@ -206,11 +208,18 @@ anticythere/
   i18n.py         toutes les chaînes, FR et EN
 tests/
   test_mechanism.py      16 séries de tests, exécutables sans écran
-  test_gui.py            11 séries de tests d'interface (Xvfb)
-  test_confidentialite.py  garde-fou : aucune donnée personnelle
+  test_gui.py            13 séries de tests d'interface (Xvfb)
+  test_kit.py            kit commun : style figé, explorateur, manuels, logo, données hors de l'archive
+  test_suites.py         les deux suites ci-dessus lancées par pytest (CI)
+  test_confidentialite.py  garde-fou à empreintes : aucune donnée personnelle
+docs/
+  logo.svg               SOURCE UNIQUE du logo (icônes .ico/.icns/.png : python -m anticythere.logo)
+  src/                   manuels LaTeX FR et EN (./compiler.sh)
+  captures.py            captures réelles des manuels (xvfb-run)
 run.py
 build_package.py, installer.iss   paquet et installeur Windows
 build_unix.py                     paquets macOS (.app) et Linux (dossier + installer.sh)
+reporting.py, updater.py, interface_kit.py, kit_aide.py   kit commun (rapports, MAJ, style, menu Aide)
 ```
 
 ## Tests
@@ -218,6 +227,7 @@ build_unix.py                     paquets macOS (.app) et Linux (dossier + insta
 ```bash
 python tests/test_mechanism.py
 xvfb-run -a python tests/test_gui.py      # sous Linux : il faut un vrai serveur X
+xvfb-run -a python -m pytest -q tests/    # tout, comme la CI
 ```
 
 Vérifie les rapports contre les valeurs calculées indépendamment sous SageMath,
@@ -291,6 +301,16 @@ python run.py --lang en
 
 Python 3.10+. If OpenGL is unavailable the app falls back to an animated 2D
 diagram rather than failing.
+
+📖 **Full illustrated manual**, in English [`docs/manuel-en.pdf`](docs/manuel-en.pdf) and
+French [`docs/manuel-fr.pdf`](docs/manuel-fr.pdf) (17 pages each, real screenshots of the
+interface in its language), opened by **Help → Manual (PDF)** or `F1`.
+
+The look is fixed (Qt "Fusion" style, full palette, bundled Source Sans 3 font): the same on
+Windows, macOS and Linux, whatever the system's light or dark theme. Every export (SVG, PDF,
+PNG, CSV, STL) opens a real file explorer, complete on Linux too.
+
+![the simulator window, machine closed](docs/captures/fenetre-en.png)
 
 ## What it does
 
@@ -367,10 +387,13 @@ after a full cycle, planetary period relations, reference astronomy, error
 budget, 33 valid meshes, 17 exact centre distances, collision-free explosion
 (including every arbor extended to its dial, with the carrier turning),
 colour palette (CIEDE2000, simulated colour blindness), and no untranslated
-string — neither missing keys nor hard-coded displayed text. Plus eleven GUI
+string — neither missing keys nor hard-coded displayed text. Plus thirteen GUI
 test groups (`xvfb-run -a python tests/test_gui.py`): crank turned with the
-mouse in both renderings, mouse wheel, explosion as actually displayed, and no
-French left in the English interface (and vice versa).
+mouse in both renderings, mouse wheel, explosion as actually displayed, reset
+view after a roll, logo in the About box, and no French left in the English
+interface (and vice versa). `tests/test_kit.py` checks the common kit: fixed
+style, full file dialog on Linux, manuals in both languages, a single logo
+source, user data kept out of the update archive.
 
 ---
 

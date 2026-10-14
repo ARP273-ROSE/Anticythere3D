@@ -678,12 +678,21 @@ if HAS_GL:
             self.look_at("iso")
 
         def look_at(self, mode: str):
+            """Vue canonique. En mode quaternion, setCameraPosition(elevation,
+            azimuth) ne remplace que deux angles d'Euler et GARDE le roulis
+            courant : après un roulis ou la vue arrière, « Recentrer » donnait
+            une machine penchée ou retournée. On pose donc la rotation entière."""
             if mode == "front":
-                self.setCameraPosition(distance=330, elevation=88, azimuth=-90)
+                dist, elev, azim = 330, 88, -90
             elif mode == "back":
-                self.setCameraPosition(distance=330, elevation=-88, azimuth=90)
+                dist, elev, azim = 330, -88, 90
             else:
-                self.setCameraPosition(distance=360, elevation=24, azimuth=-62)
+                dist, elev, azim = 360, 24, -62
+            if self.opts.get("rotationMethod") == "quaternion":
+                self.setCameraPosition(distance=dist, rotation=QtGui.QQuaternion.fromEulerAngles(
+                    elev - 90.0, 0.0, -azim - 90.0))
+            else:
+                self.setCameraPosition(distance=dist, elevation=elev, azimuth=azim)
             self.opts["center"] = QtGui.QVector3D(*lay.center(self.explode))
             self.update()
 

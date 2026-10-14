@@ -266,6 +266,101 @@ def extraits_journal(chemin, lignes_max: int = 40) -> str:
 # Envoi
 # ---------------------------------------------------------------------------
 
+# Certificats racine : le Python EMBARQUÉ ne trouve pas toujours ceux du
+# système, et celui de Windows peut proposer une chaîne périmée. Deux retours
+# d'utilisateurs (Simulateur Perce-Neige, 09 et 11/10/2026) :
+#   - Manjaro : « CERTIFICATE_VERIFY_FAILED unable to get local issuer
+#     certificate » — le Python autonome cherche les racines là où les range
+#     la machine de construction, Arch/Fedora/openSUSE les rangent ailleurs ;
+#   - Windows : « certificate has expired » sur une chaîne pourtant valide
+#     (Let's Encrypt → ISRG Root X2) : le magasin du système proposait un
+#     chemin passant par un certificat périmé.
+# D'où la cascade : magasin du système ; s'il est vide (hors Windows), les
+# emplacements connus des distributions ; et si la vérification échoue
+# quand même, certifi et les racines embarquées par l'application (kit.json
+# « racines_tls », un fichier PEM à côté du module). JAMAIS de vérification
+# désactivée.
+_EMPLACEMENTS_RACINES = (
+    '/etc/ssl/certs/ca-certificates.crt',                    # Debian, Ubuntu, Arch (lien)
+    '/etc/ca-certificates/extracted/tls-ca-bundle.pem',      # Arch, Manjaro
+    '/etc/ssl/cert.pem',                                     # Arch, Alpine, macOS
+    '/etc/pki/tls/certs/ca-bundle.crt',                      # Fedora, RHEL
+    '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem',     # Fedora, RHEL
+    '/etc/ssl/ca-bundle.pem',                                # openSUSE
+)
+_contexte_systeme = None
+
+
+def contexte_tls():
+    """Le contexte TLS du système, complété des racines de la distribution
+    quand le Python embarqué n'en trouve aucune."""
+    global _contexte_systeme
+    if _contexte_systeme is not None:
+        return _contexte_systeme
+    import ssl
+    ctx = ssl.create_default_context()
+    if not ctx.get_ca_certs() and os.name != 'nt':
+        for f in _EMPLACEMENTS_RACINES:
+            if os.path.isfile(f):
+                try:
+                    ctx.load_verify_locations(cafile=f)
+                    break
+                except Exception:
+                    pass
+        else:
+            try:
+                import certifi
+                ctx.load_verify_locations(cafile=certifi.where())
+            except Exception:
+                pass
+    _contexte_systeme = ctx
+    return ctx
+
+
+def contexte_tls_secours():
+    """Contexte de repli : certifi et les racines embarquées par l'application
+    (kit.json « racines_tls »), ou None s'il n'y a ni l'un ni l'autre."""
+    import ssl
+    ctx = None
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ctx = None
+    nom = _lire_kit().get('racines_tls') or ''
+    if nom:
+        f = Path(__file__).resolve().parent / nom
+        if f.is_file():
+            try:
+                if ctx is None:
+                    ctx = ssl.create_default_context(cafile=str(f))
+                else:
+                    ctx.load_verify_locations(cafile=str(f))
+            except Exception:
+                pass
+    return ctx
+
+
+def ouvrir_url(requete, timeout: float = 30.0):
+    """urllib.request.urlopen avec le contexte du système, puis, si la
+    vérification du certificat échoue, avec le contexte de secours. Sert
+    aussi à updater.py. Jamais sans vérification."""
+    import ssl
+    try:
+        return urllib.request.urlopen(requete, timeout=timeout, context=contexte_tls())
+    except urllib.error.URLError as e:
+        raison = getattr(e, 'reason', e)
+        if not isinstance(raison, ssl.SSLCertVerificationError) \
+                and 'CERTIFICATE_VERIFY_FAILED' not in str(e):
+            raise
+        secours = contexte_tls_secours()
+        if secours is None:
+            raise
+        log.info("Certificat refusé par le magasin du système, nouvel essai "
+                 "avec les racines de secours : %s", e)
+        return urllib.request.urlopen(requete, timeout=timeout, context=secours)
+
+
 def _poster(charge: bytes) -> bool:
     requete = urllib.request.Request(
         ENDPOINT, data=charge, method='POST',
@@ -275,7 +370,7 @@ def _poster(charge: bytes) -> bool:
             'User-Agent': 'rapports-kit-windows',
         })
     try:
-        with urllib.request.urlopen(requete, timeout=DELAI) as r:
+        with ouvrir_url(requete, timeout=DELAI) as r:
             return 200 <= r.status < 300
     except urllib.error.HTTPError as e:
         # 4xx : le serveur a compris et refuse. Réessayer n'y changera rien,
@@ -338,7 +433,7 @@ def vider_file() -> int:
     l'application avant que l'envoi n'aboutisse. Cette reprise est donc le
     chemin normal, pas un cas dégradé.
     """
-    if _dossier is None or consentement() is not True:
+    if _dossier is None:
         return 0
 
     try:
@@ -346,11 +441,21 @@ def vider_file() -> int:
     except Exception:
         return 0
 
-    # Les plus vieux d'abord, mais on ne garde que les plus récents.
+    # Les plus vieux d'abord, mais on ne garde que les plus récents — MÊME
+    # sans accord d'envoi : sinon la file d'un utilisateur qui a refusé
+    # grossissait sans fin (Simulateur Perce-Neige, 2026).
     limite = time.time() - AGE_MAX
     for vieux in fichiers[:-FILE_MAX] if len(fichiers) > FILE_MAX else []:
         vieux.unlink(missing_ok=True)
     fichiers = sorted(_dossier.glob('*.json'))
+    if consentement() is not True:
+        for f in fichiers:
+            try:
+                if f.stat().st_mtime < limite:
+                    f.unlink(missing_ok=True)
+            except Exception:
+                pass
+        return 0
 
     envoyes = 0
     for f in fichiers:
@@ -477,6 +582,12 @@ class Vigie:
         # ainsi remontes d'un poste sain : « fin du gel apres 23 573 s »,
         # soit exactement les six heures et demie d'allumage de l'ordinateur.
         self._avertissement_sans_battement = False
+        # Facultatif : fonction appelée DEPUIS LA VIGIE au début d'un gel, qui
+        # rend un dict de contexte joint au rapport (état d'un processus
+        # enfant, fin d'un journal...). La pile Python seule ne dit rien
+        # quand le blocage est natif (Simulateur Perce-Neige : fenêtre 3D
+        # embarquée qui ne répond plus). Elle ne doit pas toucher à Qt.
+        self.contexte = None
 
     def battre(self) -> None:
         """À appeler depuis le fil graphique, à intervalle régulier."""
@@ -516,10 +627,16 @@ class Vigie:
             if retard >= self.seuil and not self._signale:
                 self._signale = True
                 self._debut_gel = self._dernier
+                supplement = {}
+                if self.contexte is not None:
+                    try:
+                        supplement = {'contexte': self.contexte()}
+                    except Exception as e:
+                        supplement = {'contexte': {'erreur': repr(e)[:200]}}
                 try:
                     envoyer('gel', resume=f"interface figée depuis {retard:.0f} s",
                             retard_s=round(retard, 1), phase='debut',
-                            piles=self._piles())
+                            piles=self._piles(), **supplement)
                 except Exception:
                     log.warning("Rapport de gel impossible", exc_info=True)
 
