@@ -164,10 +164,23 @@ def anonymiser(texte: str | None) -> str:
     if not texte:
         return ''
     import re
+    texte = str(texte)
+    # Nom de la machine et nom d'utilisateur : jamais transmis (repris de
+    # Coupole), même hors d'un chemin (« Connexion à MON-PC refusée »).
+    try:
+        hote = platform.node()
+        if hote and len(hote) > 2:
+            texte = re.sub(r'(?<![A-Za-z0-9])%s(?![A-Za-z0-9])' % re.escape(hote), '<poste>', texte)
+    except Exception:
+        pass
     home = str(Path.home())
     for variante in (home.replace('\\', '/'), home, home.lower()):
-        if variante:
+        if variante and len(variante) > 1:
             texte = texte.replace(variante, '~')
+    for var in ('USERNAME', 'USER', 'LOGNAME'):
+        nom = os.environ.get(var)
+        if nom and len(nom) > 2:
+            texte = re.sub(r'(?<![A-Za-z0-9])%s(?![A-Za-z0-9])' % re.escape(nom), '<utilisateur>', texte)
     # C:\Musique\Artiste\Album\03 Titre.mp3  ->  C:\Musique\…\03 Titre.mp3
     texte = re.sub(r'([A-Za-z]:\\[^\\\n"\']{1,30})(\\[^\\\n"\']{1,60}){2,}\\',
                    r'\1\\…\\', texte)
@@ -225,7 +238,12 @@ def _place_libre_go(dossier) -> float:
 def _machine() -> dict:
     """Le strict nécessaire pour reproduire un problème."""
     infos = {
-        'poste': platform.node() or '?',
+        # Par défaut le nom de la machine, pour reconnaître un poste suivi ;
+        # voir l'option kit.json « rapports.poste » (_poste). L'identifiant
+        # aléatoire part en plus, pour distinguer deux installations d'une
+        # même machine.
+        'poste': _poste(),
+        'installation': _identifiant_installation(),
         'os': f"{platform.system()} {platform.release()}",
         'os_detail': platform.version(),
         'arch': platform.machine(),
@@ -239,6 +257,50 @@ def _machine() -> dict:
     infos['application'] = APPLICATION
     infos['version'] = VERSION_APP or '?'
     return infos
+
+
+def _poste() -> str:
+    """Ce que le champ « poste » transmet.
+
+    Par défaut le NOM DE LA MACHINE (kit.json « rapports.poste » = « machine »).
+    Une application utilisée par des tiers (Coupole, par d'autres étudiants)
+    met « installation » : le nom de la machine — qui peut contenir un prénom,
+    « PC-de-Marie » — n'est alors jamais transmis, l'identifiant aléatoire le
+    remplace. Le nom reste lu localement pour être masqué dans les traces."""
+    mode = ((_lire_kit().get('rapports') or {}).get('poste') or 'machine')
+    if mode == 'installation':
+        return _identifiant_installation()
+    return platform.node() or '?'
+
+
+def _identifiant_installation() -> str:
+    """Identifiant aleatoire tire au premier rapport et garde avec le
+    consentement ; il ne dit rien de la machine ni de son proprietaire."""
+    ident = _reglages.get('id_installation')
+    if not ident:
+        import uuid
+        ident = _reglages['id_installation'] = 'install-' + uuid.uuid4().hex[:12]
+        _ecrire_reglages()
+    return ident
+
+
+#: Bornes d'un rapport : un champ texte garde sa FIN (le bas d'une trace est
+#: ce qui compte), une structure est tronquee (repris de Coupole).
+CHAMP_MAX = 8000
+
+
+def _borner(valeur, profondeur=0):
+    if isinstance(valeur, str):
+        return anonymiser(valeur[-CHAMP_MAX:] if len(valeur) > CHAMP_MAX else valeur)
+    if profondeur > 4:
+        return str(valeur)[:200]
+    if isinstance(valeur, dict):
+        return {str(k)[:80]: _borner(v, profondeur + 1) for k, v in list(valeur.items())[:100]}
+    if isinstance(valeur, (list, tuple)):
+        return [_borner(v, profondeur + 1) for v in list(valeur)[:200]]
+    if isinstance(valeur, (int, float, bool)) or valeur is None:
+        return valeur
+    return anonymiser(str(valeur)[:CHAMP_MAX])
 
 
 def extraits_journal(chemin, lignes_max: int = 40) -> str:
@@ -405,9 +467,7 @@ def envoyer(genre: str, **champs) -> dict:
     rapport['genre'] = genre
     rapport['horodatage'] = time.strftime('%Y-%m-%d %H:%M:%S')
     for cle, valeur in champs.items():
-        if isinstance(valeur, str):
-            valeur = anonymiser(valeur)
-        rapport[cle] = valeur
+        rapport[cle] = _borner(valeur)
 
     if consentement() is not True:
         # Pas d'accord : on garde quand même une trace locale, pour que le

@@ -112,9 +112,16 @@ def _open(url):
     except Exception:
         ouvrir_url = None
     if ouvrir_url is not None:
-        return ouvrir_url(req, timeout=TIMEOUT)
-    ctx = ssl.create_default_context()
-    return urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx)
+        r = ouvrir_url(req, timeout=TIMEOUT)
+    else:
+        ctx = ssl.create_default_context()
+        r = urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx)
+    # L'adresse atteinte APRES les redirections doit etre de confiance aussi.
+    finale = getattr(r, 'geturl', lambda: url)() or url
+    if not _hote_de_confiance(finale):
+        r.close()
+        raise RuntimeError(f"Redirection refusee : {finale}")
+    return r
 
 
 def plateforme() -> str:
@@ -250,14 +257,58 @@ def _decrire(tag, asset, data):
     """La mise a jour retenue, avec de quoi verifier son integrite : taille
     annoncee par l'API et, si la Release le publie, le fichier SHA256SUMS."""
     sommes = [a for a in data.get('assets', []) if (a.get('name') or '') == 'SHA256SUMS']
+    # Manifeste signe publie a cote des archives (voir signature_maj.py).
+    nom_signature = f"{_kit().get('nom_technique') or 'app'}-signature-{tag}.json".lower()
+    signature = [a for a in data.get('assets', [])
+                 if (a.get('name') or '').lower() == nom_signature]
     return {
         'version': tag,
+        'signature_url': signature[0]['browser_download_url'] if signature else '',
         'url': asset['browser_download_url'],
         'nom': asset.get('name') or '',
         'size': asset.get('size', 0),
         'sha256sums_url': sommes[0]['browser_download_url'] if sommes else '',
         'notes': data.get('body') or '',
+        # page de la Release et autres fichiers publies (un paquet systeme
+        # .deb, par exemple, que l'application indique sans l'installer)
+        'page': data.get('html_url') or '',
+        'actifs': [{'nom': a.get('name') or '', 'url': a.get('browser_download_url') or '',
+                    'size': a.get('size', 0)} for a in data.get('assets', [])],
     }
+
+
+def verifier_signature(update, archive) -> None:
+    """Refuse une archive que la cle de l'editeur n'a pas signee.
+
+    Exige des que kit.json porte « cle_publique_maj » : une Release sans
+    signature, signee par une autre cle, pour une autre version, ou dont le
+    manifeste ne donne pas CETTE empreinte, n'est jamais installee. HTTPS et
+    SHA256SUMS prouvent que l'archive est celle du depot, pas que son auteur
+    l'y a mise : un jeton GitHub vole pouvait publier n'importe quoi."""
+    cle = _kit().get('cle_publique_maj') or ''
+    if not cle:
+        return
+    url = update.get('signature_url') or ''
+    if not url:
+        raise RuntimeError("Mise a jour non signee : refusee")
+    with _open(url) as r:
+        document = r.read(65536 + 1)
+    if len(document) > 65536:
+        raise RuntimeError("Signature de mise a jour trop grosse")
+    import hashlib
+    import signature_maj
+    try:
+        manifeste = signature_maj.lire_manifeste(document, cle)
+    except (ValueError, KeyError) as e:
+        raise RuntimeError(f"Signature refusee : {e}")
+    if str(manifeste.get('version')) != str(update.get('version')):
+        raise RuntimeError("Signature d'une autre version : refusee")
+    h = hashlib.sha256()
+    with open(archive, 'rb') as f:
+        for bloc in iter(lambda: f.read(1 << 20), b''):
+            h.update(bloc)
+    if (manifeste['fichiers'].get(update.get('nom') or '') or '').lower() != h.hexdigest():
+        raise RuntimeError("Archive absente du manifeste signe : refusee")
 
 
 def verifier_integrite(update, archive, taille):
@@ -283,6 +334,39 @@ def verifier_integrite(update, archive, taille):
             h.update(bloc)
     if h.hexdigest().lower() != ligne[0][0].lower():
         raise RuntimeError("Empreinte SHA-256 differente de SHA256SUMS : archive refusee")
+
+
+#: Garde-fous de l'extraction (repris de Coupole) : au-dela, une archive de
+#: mise a jour n'est pas une application mais une « bombe » de decompression.
+#: Pas de plafond fixe : le volume deplie est juge par rapport a l'archive.
+MEMBRES_MAX = 100_000
+RAPPORT_DECOMPRESSION_MAX = 200
+DEPLIE_TOUJOURS_ADMIS = 2 * 2**30
+
+
+def verifier_archive(z, extrait) -> None:
+    """Refuse toute archive qui ecrirait hors de `extrait` (zip slip : « ../ »,
+    chemin absolu, lecteur Windows), un lien symbolique, un nombre de membres
+    ou un volume deplie deraisonnables."""
+    infos = z.infolist()
+    if len(infos) > MEMBRES_MAX:
+        raise RuntimeError(f"Archive suspecte : {len(infos)} membres")
+    base = os.path.realpath(str(extrait))
+    total = compresse = 0
+    for info in infos:
+        nom = info.filename
+        morceaux = nom.replace('\\', '/').split('/')
+        if not nom or nom.startswith(('/', '\\')) or ':' in morceaux[0] or '..' in morceaux:
+            raise RuntimeError(f"Archive suspecte : {nom}")
+        cible = os.path.realpath(os.path.join(base, *morceaux))
+        if os.path.commonpath([base, cible]) != base:
+            raise RuntimeError(f"Archive suspecte : {nom}")
+        if (info.external_attr >> 16) & 0o170000 == 0o120000:
+            raise RuntimeError(f"Archive suspecte : lien symbolique {nom}")
+        total += info.file_size
+        compresse += info.compress_size
+    if total > DEPLIE_TOUJOURS_ADMIS and total > RAPPORT_DECOMPRESSION_MAX * max(1, compresse):
+        raise RuntimeError(f"Archive suspecte : {total} octets une fois depliee")
 
 
 def download_and_apply(update, progress=None):
@@ -311,14 +395,14 @@ def download_and_apply(update, progress=None):
                 if progress:
                     progress(done, total)
         verifier_integrite(update, archive, done)
+        verifier_signature(update, archive)
 
         extracted = tmpdir / 'contenu'
         with zipfile.ZipFile(archive) as z:
-            # Refuse les chemins qui sortent du dossier d'extraction.
-            for member in z.namelist():
-                dest = (extracted / member).resolve()
-                if not str(dest).startswith(str(extracted.resolve())):
-                    raise RuntimeError(f"Archive suspecte : {member}")
+            # Refuse les chemins qui sortent du dossier d'extraction, les liens
+            # symboliques et les bombes de decompression.
+            extracted.mkdir(parents=True, exist_ok=True)
+            verifier_archive(z, extracted)
             z.extractall(extracted)
             # zipfile ne restitue pas le bit d'execution. Sous Windows cela
             # n'a aucune importance ; ailleurs, le lanceur et l'interpreteur

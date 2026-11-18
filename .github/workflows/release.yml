@@ -39,6 +39,13 @@ on:
         description: "Publier en BROUILLON (invisible pour la mise a jour automatique tant qu'il n'est pas publie)"
         type: boolean
         default: false
+      # Construire et verifier tous les paquets SANS RIEN PUBLIER : ni tag, ni
+      # Release, ni brouillon ; les paquets restent en artefacts de
+      # construction (repris de Coupole 0.7.0).
+      essai:
+        description: "ESSAI : construire et verifier les paquets sans rien publier"
+        type: boolean
+        default: false
   # Appelable depuis un autre workflow du depot. C'est indispensable quand une
   # CI cree elle-meme le tag : GitHub ne declenche aucun workflow sur un
   # evenement produit par le jeton d'un workflow (protection anti-boucle), si
@@ -58,6 +65,11 @@ on:
       brouillon:
         description: "Publier en BROUILLON (le workflow appelant le demande quand des
           installations dependent de la mise a jour automatique)"
+        required: false
+        type: boolean
+        default: false
+      essai:
+        description: "Construire et verifier sans rien publier"
         required: false
         type: boolean
         default: false
@@ -83,6 +95,7 @@ jobs:
       version: ${{ steps.choix.outputs.version }}
       ref: ${{ steps.choix.outputs.ref }}
       depot: ${{ steps.choix.outputs.depot }}
+      matrice: ${{ steps.systemes.outputs.matrice }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -139,6 +152,26 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
           echo "A construire : $V ($DEPOT @ $REF)"
+      # Paquets macOS/Linux a construire : kit.json « systemes_unix »
+      # (« macos-arm64 », « macos-x86_64 », « linux-x86_64 », « linux-arm64 »),
+      # tous par defaut. Une application propre a Linux n'a rien a faire d'un .dmg.
+      - id: systemes
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          tous = [
+              {"os": "macos-latest", "plateforme": "macos", "arch": "arm64"},
+              {"os": "macos-15-intel", "plateforme": "macos", "arch": "x86_64"},
+              {"os": "ubuntu-latest", "plateforme": "linux", "arch": "x86_64"},
+              {"os": "ubuntu-24.04-arm", "plateforme": "linux", "arch": "arm64"},
+          ]
+          voulus = json.load(open('kit.json', encoding='utf-8')).get('systemes_unix') or []
+          choisis = [s for s in tous if not voulus or f"{s['plateforme']}-{s['arch']}" in voulus]
+          if not choisis:
+              raise SystemExit("kit.json systemes_unix : aucun systeme reconnu")
+          print("matrice=" + json.dumps({"include": choisis}))
+          PY
 
   # Les essais du depot (kit.json « tests_ci » : cibles pytest), sous Linux,
   # interface comprise (Xvfb). Un echec arrete la publication. Sans la cle, le
@@ -177,7 +210,7 @@ jobs:
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-cursor0 \
             libxcb-xkb1 libpulse0 libasound2t64 \
             libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1 libxshmfence1 libgbm1 libminizip1
-          pip install -q pytest -r "${{ steps.kit.outputs.requirements }}"
+          pip install -q pytest cryptography -r "${{ steps.kit.outputs.requirements }}"
       - name: Essais
         if: steps.kit.outputs.cibles != ''
         env:
@@ -335,6 +368,12 @@ jobs:
           for module in kit.get('verification_import', []):
               __import__(module)
               print('  import OK :', module)
+          # kit.json « essai_embarquees » (« module:fonction ») : bibliotheques
+          # facultatives embarquees essayees pour de vrai, comme sous macOS et Linux
+          essai = kit.get('essai_embarquees')
+          if essai:
+              m, _, f = essai.partition(':')
+              print('  bibliotheques embarquees :', getattr(__import__(m, fromlist=[f]), f)())
           attendue = '${{ steps.version.outputs.value }}'
           vue = pathlib.Path(r'$PKG/app/' + kit['fichier_version']).read_text(encoding='utf-8').strip()
           if vue != attendue:
@@ -345,6 +384,16 @@ jobs:
           assert updater.is_packaged(), 'paquet non reconnu par la mise a jour'
           print('paquet fonctionnel, version', vue)
           "
+
+      # Le paquet Windows lance l'application elle-meme en mode verification,
+      # comme les paquets macOS et Linux (« --check », sans ecran).
+      - name: Verifier l'application dans le paquet (--check)
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          PKG="$RUNNER_TEMP/build/${{ steps.kit.outputs.nom_fichier }}"
+          (cd "$PKG/app" && "$PKG/python/python.exe" -B "${{ steps.kit.outputs.point_entree }}" --check)
 
       # Controles joues SUR LE PAQUET CONSTRUIT, avec son propre Python
       # (kit.json « controles_paquet ») : copies dans app/, lances depuis
@@ -445,22 +494,10 @@ jobs:
     if: needs.decider.outputs.construire == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # macos-latest est un Mac Apple Silicon : n'y construire qu'un seul
-          # paquet livrerait un .dmg arm64 qu'un Mac Intel ne peut pas ouvrir.
-          - os: macos-latest
-            plateforme: macos
-            arch: arm64
-          - os: macos-15-intel
-            plateforme: macos
-            arch: x86_64
-          - os: ubuntu-latest
-            plateforme: linux
-            arch: x86_64
-          - os: ubuntu-24.04-arm
-            plateforme: linux
-            arch: arm64
+      # macos-latest est un Mac Apple Silicon : n'y construire qu'un seul
+      # paquet livrerait un .dmg arm64 qu'un Mac Intel ne peut pas ouvrir.
+      # La liste vient de « decider » (kit.json « systemes_unix »).
+      matrix: ${{ fromJSON(needs.decider.outputs.matrice) }}
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -480,7 +517,7 @@ jobs:
           k = json.load(open('kit.json'))
           for cle in ('nom_technique', 'nom_fichier', 'nom_affiche',
                       'depot_distribution', 'fichier_version',
-                      'artefact_prealable', 'artefact_dossier'):
+                      'artefact_prealable', 'artefact_dossier', 'paquet_deb'):
               print(f"{cle}={k.get(cle, '')}")
           PY
 
@@ -554,6 +591,37 @@ jobs:
           NOM="${{ steps.kit.outputs.nom_fichier }}"
           "dist/$NOM.app/Contents/MacOS/$NOM" --check
 
+      # Paquet Debian/Ubuntu (facultatif, kit.json « paquet_deb » : script du
+      # depot qui le construit depuis dist/<Nom>, repris de Coupole) ; essaye
+      # dans un conteneur Ubuntu nu, dependances tirees par apt : une
+      # bibliotheque systeme oubliee dans « Depends » se voit ici.
+      - name: Paquet Debian (Linux)
+        if: matrix.plateforme == 'linux' && steps.kit.outputs.paquet_deb != ''
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python3 "${{ steps.kit.outputs.paquet_deb }}" --version ${{ steps.version.outputs.value }}
+
+      - name: Essai du paquet Debian dans un conteneur nu (Linux)
+        if: matrix.plateforme == 'linux' && steps.kit.outputs.paquet_deb != ''
+        shell: bash
+        run: |
+          case "${{ matrix.arch }}" in
+            x86_64) ARCH=amd64 ;;
+            arm64)  ARCH=arm64 ;;
+          esac
+          TECH="${{ steps.kit.outputs.nom_technique }}"
+          DEB=$(ls *_"$ARCH".deb | head -1)
+          IMAGE=public.ecr.aws/ubuntu/ubuntu:24.04
+          for i in 1 2 3; do docker pull -q "$IMAGE" && break || { IMAGE=ubuntu:24.04; sleep 20; docker pull -q "$IMAGE" && break; }; done
+          docker run --rm -v "$PWD:/src:ro" -e DEBIAN_FRONTEND=noninteractive -e QT_QPA_PLATFORM=offscreen "$IMAGE" bash -euxc '
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends /src/'"$DEB"' >/dev/null
+            '"$TECH"' --version
+            '"$TECH"' --check
+            apt-get remove -y -qq '"$TECH"' >/dev/null
+            test ! -e /opt/'"$TECH"' && test ! -e /usr/bin/'"$TECH"' && echo "desinstallation propre"
+          '
+
       - name: Image disque (macOS)
         if: matrix.plateforme == 'macos'
         run: |
@@ -578,6 +646,7 @@ jobs:
             *-linux-*.tar.gz
             *-maj-*.zip
             *-linux.AppImage
+            *.deb
           if-no-files-found: error
 
   # ──────────────────────────────────────────────────────────────────────
@@ -585,6 +654,8 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────
   publier:
     needs: [decider, tests, build, build-unix]
+    # essai : tout est construit et verifie, rien n'est publie
+    if: ${{ !inputs.essai }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -636,6 +707,45 @@ jobs:
           (cd publication && sha256sum * > SHA256SUMS && cat SHA256SUMS)
           ls -lh publication
 
+      # Signature des archives de mise a jour (gabarits/signature_maj.py). Le
+      # manifeste donne la version et le SHA-256 de chaque archive .zip ; il
+      # est signe par la cle Ed25519 du secret MAJ_CLE_SIGNATURE (cle du kit,
+      # la meme pour toutes les applications). Une application dont kit.json
+      # porte « cle_publique_maj » refuse toute archive absente d'un manifeste
+      # signe : sans le secret, la publication s'arrete ici plutot que de
+      # publier une version que personne ne pourrait installer.
+      - name: Signer les archives de mise a jour
+        shell: bash
+        env:
+          MAJ_CLE_SIGNATURE: ${{ secrets.MAJ_CLE_SIGNATURE }}
+        run: |
+          CLE_PUB=$(python -c "import json;print(json.load(open('kit.json', encoding='utf-8')).get('cle_publique_maj',''))")
+          if [ -z "$CLE_PUB" ]; then echo "pas de cle publique declaree : pas de signature"; exit 0; fi
+          if [ -z "$MAJ_CLE_SIGNATURE" ]; then echo "::error::secret MAJ_CLE_SIGNATURE absent"; exit 1; fi
+          python -m pip install --quiet cryptography
+          V="${{ steps.version.outputs.value }}" NT="${{ steps.kit.outputs.nom_technique }}" DOSSIER="publication" python - <<'PY'
+          import base64, glob, hashlib, json, os
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          from cryptography.hazmat.primitives import serialization as ser
+          V, NT, D = os.environ['V'], os.environ['NT'], os.environ['DOSSIER']
+          fichiers = {}
+          for chemin in sorted(glob.glob(os.path.join(D, '*.zip'))):
+              with open(chemin, 'rb') as f:
+                  fichiers[os.path.basename(chemin)] = hashlib.sha256(f.read()).hexdigest()
+          if not fichiers:
+              raise SystemExit('aucune archive de mise a jour a signer')
+          cle = Ed25519PrivateKey.from_private_bytes(base64.b64decode(os.environ['MAJ_CLE_SIGNATURE'].strip()))
+          pub = base64.b64encode(cle.public_key().public_bytes(ser.Encoding.Raw, ser.PublicFormat.Raw)).decode()
+          if pub != json.load(open('kit.json', encoding='utf-8'))['cle_publique_maj']:
+              raise SystemExit('le secret ne correspond pas a la cle publique de kit.json')
+          texte = json.dumps({'version': V, 'fichiers': fichiers}, sort_keys=True)
+          signature = base64.b64encode(cle.sign(texte.encode('utf-8'))).decode()
+          sortie = os.path.join(D, f'{NT}-signature-{V}.json')
+          with open(sortie, 'w', encoding='utf-8') as f:
+              json.dump({'manifeste': texte, 'signature': signature}, f)
+          print('signe :', ', '.join(fichiers), '->', sortie)
+          PY
+
       # Notes de la Release : une section par langue (« ## English »,
       # « ## Francais ») ; l'application n'affiche que celle de son interface
       # (updater.notes_dans_la_langue). kit.json « langue_principale » met sa
@@ -660,6 +770,12 @@ jobs:
               ('Linux x86_64', f'{nom}-{V}-linux-x86_64.tar.gz'),
               ('Linux ARM64', f'{nom}-{V}-linux-arm64.tar.gz'),
           ]
+          # seulement les systemes effectivement construits (« systemes_unix »)
+          fichiers = [(s, f) for s, f in fichiers if os.path.exists(os.path.join('publication', f))]
+          # paquets Debian/Ubuntu (kit.json « paquet_deb ») : noms stables
+          for deb in sorted(os.listdir('publication')):
+              if deb.endswith('.deb') and '-linux-' in deb:
+                  fichiers.append(('Debian/Ubuntu ' + deb.rsplit('-', 1)[-1][:-4], deb))
 
           def journal(cle):
               chemin = k.get(cle) or ''
@@ -763,8 +879,11 @@ jobs:
               if nouveau:
                   morceaux.append(f'{entete}\n\n{nouveau}\n')
               # le gabarit est indente dans ce fichier : on retire l'indentation
-              morceaux.append('\n'.join(l[10:] if l.startswith(' ' * 10) else l
-                                        for l in corps.splitlines()).strip() + '\n')
+              corps = '\n'.join(l[10:] if l.startswith(' ' * 10) else l for l in corps.splitlines())
+              if not any(f.endswith('.dmg') for _, f in fichiers):
+                  # pas de paquet macOS (« systemes_unix ») : pas de mode d'emploi macOS
+                  corps = re.sub(r'\n\*\*macOS\*\*.*?(?=\n\n)', '', corps, flags=re.S)
+              morceaux.append(corps.strip() + '\n')
           open('notes.md', 'w', encoding='utf-8').write('\n'.join(morceaux))
           PY
           cat notes.md
@@ -779,3 +898,35 @@ jobs:
           draft: ${{ inputs.brouillon == true }}
           files: publication/*
           body_path: notes.md
+
+      # kit.json « release_unique » : true ne garde que la Release qui vient
+      # d'etre publiee. Les precedentes et les
+      # autres tags sont supprimes : une application installee ne regarde que
+      # la derniere version. Jamais apres un brouillon, et jamais si la
+      # nouvelle Release n'est pas en ligne avec ses fichiers.
+      - name: Ne garder que cette Release (release_unique)
+        if: ${{ inputs.brouillon != true }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          DEPOT: ${{ steps.kit.outputs.depot_distribution }}
+          GARDER: v${{ steps.version.outputs.value }}
+        run: |
+          unique=$(python3 -c "import json; print(json.load(open('kit.json', encoding='utf-8')).get('release_unique') is True)")
+          if [ "$unique" != "True" ]; then echo "release_unique absent : historique garde"; exit 0; fi
+          actifs=$(gh release view "$GARDER" -R "$DEPOT" --json isDraft,assets -q 'select(.isDraft == false) | .assets | length')
+          if [ -z "$actifs" ] || [ "$actifs" -lt 1 ]; then
+            echo "::error::$GARDER n'est pas publiee avec ses fichiers : rien n'est supprime"; exit 1
+          fi
+          gh release list -R "$DEPOT" --limit 500 --json tagName -q '.[].tagName' | while read -r tag; do
+            if [ -n "$tag" ] && [ "$tag" != "$GARDER" ]; then
+              echo "suppression de la Release $tag"
+              gh release delete "$tag" -R "$DEPOT" --yes --cleanup-tag
+            fi
+          done
+          gh api "repos/$DEPOT/tags" --paginate -q '.[].name' | while read -r tag; do
+            if [ -n "$tag" ] && [ "$tag" != "$GARDER" ]; then
+              echo "suppression du tag orphelin $tag"
+              gh api -X DELETE "repos/$DEPOT/git/refs/tags/$tag" || true
+            fi
+          done
